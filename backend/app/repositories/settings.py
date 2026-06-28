@@ -1,7 +1,7 @@
 import sqlite3
 
 from ..db.connection import get_connection
-from ..errors import RepositoryError
+from ..errors import RepositoryError, SETTING_NOT_FOUND
 from ..models.repository import SettingValueResult
 
 
@@ -20,7 +20,7 @@ def update_key_value(key: str, value: str) -> SettingValueResult:
             conn.commit()
 
             if cursor.rowcount == 0:
-                raise RepositoryError(f"No setting found with key: {key}")
+                raise RepositoryError(SETTING_NOT_FOUND.format(key=key))
 
             return SettingValueResult(key=key, value=value)
 
@@ -44,7 +44,7 @@ def get_setting_value(key: str) -> SettingValueResult:
             ).fetchone()
 
             if row is None:
-                raise RepositoryError(f"No setting found with key: {key}")
+                raise RepositoryError(SETTING_NOT_FOUND.format(key=key))
 
             return SettingValueResult(key=key, value=row["value"])
 

@@ -1,7 +1,12 @@
 import sqlite3
 
 from ..db.connection import get_connection
-from ..errors import RepositoryError
+from ..errors import (
+    CHAT_FOR_VAULT_NOT_FOUND,
+    CHAT_NOT_FOUND,
+    MESSAGE_NOT_FOUND,
+    RepositoryError,
+)
 from ..models.repository import (
     ChatRow,
     CreateChatResult,
@@ -47,7 +52,24 @@ def get_chats() -> GetChatsResult:
 
 # Fetch one chat record by id with its vault relationship fields.
 def get_chat(chat_id: int) -> GetChatResult:
-    raise NotImplementedError
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT id, vault_id, chat_title, created_at, updated_at
+                FROM chats
+                WHERE id = ?;
+                """,
+                (chat_id,),
+            ).fetchone()
+
+            if row is None:
+                raise RepositoryError(CHAT_NOT_FOUND.format(chat_id=chat_id))
+
+            return GetChatResult(chat=_serialize_chat(row))
+
+    except sqlite3.OperationalError as exc:
+        raise RepositoryError(f"Database operation failed: {exc}") from exc
 
 
 # Fetch all stored messages for a single chat.
@@ -115,6 +137,53 @@ def create_message(
         raise RepositoryError(f"Database operation failed: {exc}") from exc
 
 
+# Create a new message row only when the chat belongs to the expected vault.
+def create_message_for_vault(
+    chat_id: int,
+    vault_id: int,
+    role: str,
+    msg: str = "",
+    status: str = "complete",
+) -> CreateMessageResult:
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                INSERT INTO messages (chat_id, role, msg, status)
+                SELECT chats.id, ?, ?, ?
+                FROM chats
+                WHERE chats.id = ? AND chats.vault_id = ?
+                RETURNING id, chat_id, role, msg, status, created_at, updated_at;
+                """,
+                (role, msg, status, chat_id, vault_id),
+            ).fetchone()
+
+            if row is None:
+                raise RepositoryError(
+                    CHAT_FOR_VAULT_NOT_FOUND.format(
+                        chat_id=chat_id,
+                        vault_id=vault_id,
+                    )
+                )
+
+            conn.execute(
+                """
+                UPDATE chats
+                SET updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?;
+                """,
+                (chat_id,),
+            )
+            conn.commit()
+
+            return CreateMessageResult(message=_serialize_message(row))
+
+    except sqlite3.IntegrityError as exc:
+        raise RepositoryError(f"Could not create message: {exc}") from exc
+    except sqlite3.OperationalError as exc:
+        raise RepositoryError(f"Database operation failed: {exc}") from exc
+
+
 # Update the stored text for a partially streamed app message.
 def update_message_text(
     message_id: int, message_text: str, status: str = "complete"
@@ -131,7 +200,7 @@ def update_message_text(
                 (message_text, status, message_id),
             ).fetchone()
             if row is None:
-                raise RepositoryError(f"No message found with id: {message_id}")
+                raise RepositoryError(MESSAGE_NOT_FOUND.format(message_id=message_id))
 
             conn.execute(
                 """

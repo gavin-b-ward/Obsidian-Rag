@@ -4,11 +4,18 @@ from collections.abc import Iterator
 from os import stat
 from typing import Any
 
-from ..errors import RepositoryError, ValidationError
+from ..errors import (
+    CHAT_FOR_VAULT_NOT_FOUND,
+    NotFoundError,
+    REQUESTED_CHAT_FOR_VAULT_NOT_FOUND,
+    RepositoryError,
+    ValidationError,
+)
 from ..models.api import ChatResponseMetadata
 from ..repositories.chat import (
     create_chat as create_chat_record,
     create_message as create_message_record,
+    create_message_for_vault,
     update_message_text,
 )
 from .rag import stream_chat as stream_chat_response
@@ -44,8 +51,13 @@ def get_chat(chat_id: int) -> dict[str, Any]:
     raise NotImplementedError
 
 
-def event_stream(message_text: str, vault_path: str, metadata: dict[str, Any]) -> Iterator[str]:
-    yield _sse_event("chat_created", json.dumps(metadata))
+def event_stream(
+    message_text: str,
+    vault_path: str,
+    metadata: dict[str, Any],
+    started_event: str = "chat_created",
+) -> Iterator[str]:
+    yield _sse_event(started_event, json.dumps(metadata))
 
     full_response = ""
     msg_id = metadata.get("msg_id")
@@ -121,19 +133,30 @@ def create_chat(vault_id: int, message_text: str, vault_path: str) -> Iterator[s
 
 # Save a new user message on an existing chat and coordinate the streamed app reply.
 def add_message_to_chat(chat_id: int, vault_id: int, vault_path: str, msg: str) -> Any:
-    create_message_record(
-        chat_id=chat_id, 
-        role="user", 
-        msg=msg,
-        status="complete",
-    )
+    try:
+        create_message_for_vault(
+            chat_id=chat_id,
+            vault_id=vault_id,
+            role="user",
+            msg=msg,
+            status="complete",
+        )
 
-    assistant_message = create_message_record(
-        chat_id,
-        role="app",
-        msg="",
-        status="streaming",
-    ).message
+        assistant_message = create_message_for_vault(
+            chat_id=chat_id,
+            vault_id=vault_id,
+            role="app",
+            msg="",
+            status="streaming",
+        ).message
+    except RepositoryError as exc:
+        if str(exc) == CHAT_FOR_VAULT_NOT_FOUND.format(
+            chat_id=chat_id,
+            vault_id=vault_id,
+        ):
+            raise NotFoundError(REQUESTED_CHAT_FOR_VAULT_NOT_FOUND) from exc
+
+        raise
 
     metadata = {
         "vault_id": vault_id,
@@ -141,7 +164,7 @@ def add_message_to_chat(chat_id: int, vault_id: int, vault_path: str, msg: str) 
         "msg_id": assistant_message.id,
     }
 
-    return event_stream(msg, vault_path, metadata)
+    return event_stream(msg, vault_path, metadata, started_event="chat_message_created")
 
 
 

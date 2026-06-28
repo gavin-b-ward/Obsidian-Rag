@@ -5,9 +5,13 @@ from fastapi.responses import StreamingResponse
 
 from ..errors import (
     AppError,
+    CURRENT_VAULT_NOT_CONFIGURED,
     NotFoundError,
     RepositoryError,
+    REQUESTED_VAULT_NOT_FOUND,
+    SETTING_NOT_FOUND,
     ValidationError,
+    VAULT_NOT_FOUND,
     to_http_exception,
 )
 from ..models.api import ChatRequest, MsgRequest
@@ -41,8 +45,8 @@ def create_chat(chat_request: ChatRequest = Body(...)) -> StreamingResponse:
         try:
             current_vault = get_setting_value("current_vault")
         except RepositoryError as exc:
-            if "No setting found with key: current_vault" in str(exc):
-                raise NotFoundError("No current vault is configured.") from exc
+            if str(exc) == SETTING_NOT_FOUND.format(key="current_vault"):
+                raise NotFoundError(CURRENT_VAULT_NOT_CONFIGURED) from exc
 
             raise
 
@@ -57,8 +61,8 @@ def create_chat(chat_request: ChatRequest = Body(...)) -> StreamingResponse:
         try:
             vault = get_vault(chat_request.vault_id)
         except RepositoryError as exc:
-            if f"No vault found with id: {chat_request.vault_id}" in str(exc):
-                raise NotFoundError("Requested vault was not found.") from exc
+            if str(exc) == VAULT_NOT_FOUND.format(vault_id=chat_request.vault_id):
+                raise NotFoundError(REQUESTED_VAULT_NOT_FOUND) from exc
 
             raise
 
@@ -91,8 +95,8 @@ def add_message_to_chat(chat_id: int, msg_request: MsgRequest = Body(...)) -> An
         try:
             current_vault = get_setting_value("current_vault")
         except RepositoryError as exc:
-            if "No setting found with key: current_vault" in str(exc):
-                raise NotFoundError("No current vault is configured.") from exc
+            if str(exc) == SETTING_NOT_FOUND.format(key="current_vault"):
+                raise NotFoundError(CURRENT_VAULT_NOT_CONFIGURED) from exc
             raise
 
         try:
@@ -106,8 +110,8 @@ def add_message_to_chat(chat_id: int, msg_request: MsgRequest = Body(...)) -> An
         try:
             vault = get_vault(msg_request.vault_id)
         except RepositoryError as exc:
-            if f"No vault found with id: {msg_request.vault_id}" in str(exc):
-                raise NotFoundError("Requested vault was not found.") from exc
+            if str(exc) == VAULT_NOT_FOUND.format(vault_id=msg_request.vault_id):
+                raise NotFoundError(REQUESTED_VAULT_NOT_FOUND) from exc
 
             raise
 

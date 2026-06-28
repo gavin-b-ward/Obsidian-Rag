@@ -13,7 +13,15 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.ollama import Ollama
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
-from ..errors import NotFoundError, RepositoryError, ValidationError
+from ..errors import (
+    CURRENT_VAULT_NOT_CONFIGURED,
+    CURRENT_VAULT_RECORD_NOT_FOUND,
+    NotFoundError,
+    RepositoryError,
+    SETTING_NOT_FOUND,
+    ValidationError,
+    VAULT_NOT_FOUND,
+)
 from ..repositories.files import (
     get_files_for_vault,
     upsert_file_record,
@@ -154,8 +162,8 @@ def get_current_vault_path() -> str:
     try:
         current_vault = get_setting_value("current_vault")
     except RepositoryError as exc:
-        if "No setting found with key: current_vault" in str(exc):
-            raise NotFoundError("No current vault is configured.") from exc
+        if str(exc) == SETTING_NOT_FOUND.format(key="current_vault"):
+            raise NotFoundError(CURRENT_VAULT_NOT_CONFIGURED) from exc
 
         raise
 
@@ -167,8 +175,8 @@ def get_current_vault_path() -> str:
     try:
         vault_result = get_vault(vault_id)
     except RepositoryError as exc:
-        if f"No vault found with id: {vault_id}" in str(exc):
-            raise NotFoundError("Current vault record was not found.") from exc
+        if str(exc) == VAULT_NOT_FOUND.format(vault_id=vault_id):
+            raise NotFoundError(CURRENT_VAULT_RECORD_NOT_FOUND) from exc
 
         raise
 
@@ -179,8 +187,8 @@ def _get_current_vault_record() -> dict[str, Any]:
     try:
         current_vault = get_setting_value("current_vault")
     except RepositoryError as exc:
-        if "No setting found with key: current_vault" in str(exc):
-            raise NotFoundError("No current vault is configured.") from exc
+        if str(exc) == SETTING_NOT_FOUND.format(key="current_vault"):
+            raise NotFoundError(CURRENT_VAULT_NOT_CONFIGURED) from exc
 
         raise
 
@@ -192,8 +200,8 @@ def _get_current_vault_record() -> dict[str, Any]:
     try:
         vault_result = get_vault(vault_id)
     except RepositoryError as exc:
-        if f"No vault found with id: {vault_id}" in str(exc):
-            raise NotFoundError("Current vault record was not found.") from exc
+        if str(exc) == VAULT_NOT_FOUND.format(vault_id=vault_id):
+            raise NotFoundError(CURRENT_VAULT_RECORD_NOT_FOUND) from exc
 
         raise
 

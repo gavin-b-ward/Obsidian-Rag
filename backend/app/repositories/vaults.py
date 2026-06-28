@@ -1,7 +1,7 @@
 import sqlite3
 
 from ..db.connection import get_connection
-from ..errors import RepositoryError
+from ..errors import RepositoryError, VAULT_NOT_FOUND
 from ..models.repository import (
     CreateVaultResult,
     GetVaultResult,
@@ -68,7 +68,7 @@ def get_vault(vault_id: int) -> GetVaultResult:
             ).fetchone()
 
         if row is None:
-            raise RepositoryError(f"No vault found with id: {vault_id}")
+            raise RepositoryError(VAULT_NOT_FOUND.format(vault_id=vault_id))
 
         return GetVaultResult(vault=_serialize_vault(row))
 
