@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.init_db import init_db
-from app.routes import embed_router, vaults_router
+from app.routes import chat_router, embed_router, vaults_router
 
 ALLOWED_ORIGINS = [
     "http://localhost:5173",
@@ -21,6 +21,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
+    app.include_router(chat_router)
     app.include_router(embed_router)
     app.include_router(vaults_router)
     app.add_middleware(
