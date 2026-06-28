@@ -2,12 +2,28 @@ import hashlib
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from ..db.connection import get_connection
+from ..errors import RepositoryError
+from ..models.repository import (
+    FileRow,
+    GetFilesForVaultResult,
+    TouchFilesIndexedAtResult,
+    UpsertFileRecordResult,
+)
 
 
-def get_files_for_vault(vault_id: int) -> dict[str, Any]:
+def _serialize_file(row: sqlite3.Row) -> FileRow:
+    return FileRow(
+        id=row["id"],
+        path=row["path"],
+        content_hash=row["content_hash"],
+        modified_at=row["modified_at"],
+        indexed_at=row["indexed_at"],
+    )
+
+
+def get_files_for_vault(vault_id: int) -> GetFilesForVaultResult:
     try:
         with get_connection() as conn:
             rows = conn.execute(
@@ -19,16 +35,10 @@ def get_files_for_vault(vault_id: int) -> dict[str, Any]:
                 (vault_id,),
             ).fetchall()
 
-        return {
-            "ok": True,
-            "files": [dict(row) for row in rows],
-        }
+        return GetFilesForVaultResult(files=[_serialize_file(row) for row in rows])
 
     except sqlite3.OperationalError as e:
-        return {
-            "ok": False,
-            "error": f"Database operation failed: {e}",
-        }
+        raise RepositoryError(f"Database operation failed: {e}") from e
 
 
 def _hash_file(file_path: Path) -> str:
@@ -41,7 +51,7 @@ def _hash_file(file_path: Path) -> str:
 
 def upsert_file_record(
     vault_id: int, file_path: str, modified_at: datetime
-) -> dict[str, Any]:
+) -> UpsertFileRecordResult:
     path_obj = Path(file_path)
 
     try:
@@ -64,24 +74,15 @@ def upsert_file_record(
             )
             conn.commit()
 
-        return {
-            "ok": True,
-            "path": file_path,
-        }
+        return UpsertFileRecordResult(path=file_path)
 
     except sqlite3.OperationalError as e:
-        return {
-            "ok": False,
-            "error": f"Database operation failed: {e}",
-        }
+        raise RepositoryError(f"Database operation failed: {e}") from e
 
 
-def touch_files_indexed_at(paths: list[str]) -> dict[str, Any]:
+def touch_files_indexed_at(paths: list[str]) -> TouchFilesIndexedAtResult:
     if not paths:
-        return {
-            "ok": True,
-            "updated": 0,
-        }
+        return TouchFilesIndexedAtResult(updated=0)
 
     placeholders = ", ".join("?" for _ in paths)
 
@@ -97,13 +98,7 @@ def touch_files_indexed_at(paths: list[str]) -> dict[str, Any]:
             )
             conn.commit()
 
-        return {
-            "ok": True,
-            "updated": cursor.rowcount,
-        }
+        return TouchFilesIndexedAtResult(updated=cursor.rowcount)
 
     except sqlite3.OperationalError as e:
-        return {
-            "ok": False,
-            "error": f"Database operation failed: {e}",
-        }
+        raise RepositoryError(f"Database operation failed: {e}") from e

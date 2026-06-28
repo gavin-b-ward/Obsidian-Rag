@@ -1,9 +1,11 @@
 import sqlite3
-from typing import Any
 
 from ..db.connection import get_connection
+from ..errors import RepositoryError
+from ..models.repository import SettingValueResult
 
-def update_key_value(key: str, value: str) -> dict[str, Any]:
+
+def update_key_value(key: str, value: str) -> SettingValueResult:
     try:
         with get_connection() as conn:
             cursor = conn.execute(
@@ -18,50 +20,36 @@ def update_key_value(key: str, value: str) -> dict[str, Any]:
             conn.commit()
 
             if cursor.rowcount == 0:
-                return {
-                    "ok": False,
-                    "error": f"No setting found with key: {key}",
-                }
+                raise RepositoryError(f"No setting found with key: {key}")
 
-            return {
-                "ok": True,
-                "key": key,
-                "value": value,
-            }
+            return SettingValueResult(key=key, value=value)
 
     except sqlite3.OperationalError as e:
-        return {
-            "ok": False,
-            "error": f"Database operation failed: {e}",
-        }
+        raise RepositoryError(f"Database operation failed: {e}") from e
 
     except sqlite3.Error as e:
-        return {
-            "ok": False,
-            "error": f"SQLite error: {e}",
-        }
+        raise RepositoryError(f"SQLite error: {e}") from e
 
 
-def get_setting_value(key: str) -> dict[str, Any]:
-    with get_connection() as conn:
-        row = conn.execute(
-            """
-            SELECT *
-            FROM settings
-            WHERE key = ?;
-            """,
-            (key,),
-        ).fetchone()
+def get_setting_value(key: str) -> SettingValueResult:
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM settings
+                WHERE key = ?;
+                """,
+                (key,),
+            ).fetchone()
 
-        if row is None:
-            return {
-                "ok": False,
-                "error": f"No setting found with key: {key}",
-            }
+            if row is None:
+                raise RepositoryError(f"No setting found with key: {key}")
 
-        return {
-            "ok": True,
-            "key": key,
-            "value": row["value"],
-        }
+            return SettingValueResult(key=key, value=row["value"])
 
+    except sqlite3.OperationalError as e:
+        raise RepositoryError(f"Database operation failed: {e}") from e
+
+    except sqlite3.Error as e:
+        raise RepositoryError(f"SQLite error: {e}") from e
