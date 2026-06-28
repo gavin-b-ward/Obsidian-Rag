@@ -330,9 +330,46 @@ def touch_chat_updated_at(chat_id: int) -> TouchChatUpdatedAtResult:
 
 # Rename a chat title.
 def rename_chat(chat_id: int, chat_title: str) -> RenameChatResult:
-    raise NotImplementedError
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                UPDATE chats
+                SET chat_title = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                RETURNING id, vault_id, chat_title, created_at, updated_at;
+                """,
+                (chat_title, chat_id),
+            ).fetchone()
+            conn.commit()
+
+            if row is None:
+                raise RepositoryError(CHAT_NOT_FOUND.format(chat_id=chat_id))
+
+            return RenameChatResult(chat=_serialize_chat(row))
+
+    except sqlite3.OperationalError as exc:
+        raise RepositoryError(f"Database operation failed: {exc}") from exc
 
 
 # Delete a chat and rely on cascade behavior for child messages.
 def delete_chat(chat_id: int) -> DeleteChatResult:
-    raise NotImplementedError
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                DELETE FROM chats
+                WHERE id = ?
+                RETURNING id;
+                """,
+                (chat_id,),
+            ).fetchone()
+            conn.commit()
+
+            if row is None:
+                raise RepositoryError(CHAT_NOT_FOUND.format(chat_id=chat_id))
+
+            return DeleteChatResult(deleted=True)
+
+    except sqlite3.OperationalError as exc:
+        raise RepositoryError(f"Database operation failed: {exc}") from exc

@@ -16,10 +16,12 @@ from ..errors import (
 from ..models.api import ChatResponseMetadata
 from ..repositories.chat import (
     create_chat as create_chat_record,
-    get_chat_detail,
-    get_chats as get_chat_records,
     create_message as create_message_record,
     create_message_for_vault,
+    delete_chat as delete_chat_record,
+    get_chat_detail,
+    get_chats as get_chat_records,
+    rename_chat as rename_chat_record,
     update_message_text,
 )
 from .rag import stream_chat as stream_chat_response
@@ -38,6 +40,17 @@ def _derive_chat_title(message: str, max_length: int = 80) -> str:
     title = " ".join(message.strip().split())
     if not title:
         raise ValidationError("Message cannot be empty.")
+
+    if len(title) <= max_length:
+        return title
+
+    return f"{title[: max_length - 3].rstrip()}..."
+
+
+def _normalize_chat_title(chat_title: str, max_length: int = 80) -> str:
+    title = " ".join(chat_title.strip().split())
+    if not title:
+        raise ValidationError("Chat title cannot be empty.")
 
     if len(title) <= max_length:
         return title
@@ -186,9 +199,31 @@ def add_message_to_chat(chat_id: int, vault_id: int, vault_path: str, msg: str) 
 
 # Rename a chat and return the updated chat metadata.
 def rename_chat(chat_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-    raise NotImplementedError
+    chat_title = payload.get("chat_title")
+    if not isinstance(chat_title, str):
+        raise ValidationError("Chat title is required.")
+
+    normalized_title = _normalize_chat_title(chat_title)
+
+    try:
+        result = rename_chat_record(chat_id, normalized_title)
+    except RepositoryError as exc:
+        if str(exc) == CHAT_NOT_FOUND.format(chat_id=chat_id):
+            raise NotFoundError(REQUESTED_CHAT_NOT_FOUND) from exc
+
+        raise
+
+    return result.chat.model_dump()
 
 
 # Delete a chat and all messages associated with it.
 def delete_chat(chat_id: int) -> dict[str, Any]:
-    raise NotImplementedError
+    try:
+        delete_chat_record(chat_id)
+    except RepositoryError as exc:
+        if str(exc) == CHAT_NOT_FOUND.format(chat_id=chat_id):
+            raise NotFoundError(REQUESTED_CHAT_NOT_FOUND) from exc
+
+        raise
+
+    return {"chat_id": chat_id, "deleted": True}

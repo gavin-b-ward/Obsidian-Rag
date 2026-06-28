@@ -20,8 +20,10 @@ from ..repositories.vaults import get_vault
 from ..services.chat import (
     add_message_to_chat as create_message_service,
     create_chat as create_chat_service,
+    delete_chat as delete_chat_service,
     get_chat as get_chat_service,
     get_chats as get_chats_service,
+    rename_chat as rename_chat_service,
 )
 
 router = APIRouter(prefix="/v1/chats", tags=["chat"])
@@ -150,10 +152,16 @@ def add_message_to_chat(chat_id: int, msg_request: MsgRequest = Body(...)) -> An
 # Rename an existing chat and return the updated chat metadata.
 @router.patch("/{chat_id}")
 def rename_chat(chat_id: int, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
-    raise NotImplementedError
+    try:
+        return rename_chat_service(chat_id, payload)
+    except AppError as exc:
+        raise to_http_exception(exc, "chat") from exc
 
 
 # Delete a chat and all of its stored messages.
 @router.delete("/{chat_id}")
 def delete_chat(chat_id: int) -> dict[str, Any]:
-    raise NotImplementedError
+    try:
+        return delete_chat_service(chat_id)
+    except AppError as exc:
+        raise to_http_exception(exc, "chat") from exc
