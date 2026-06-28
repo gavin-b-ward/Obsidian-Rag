@@ -13,6 +13,15 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.ollama import Ollama
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
+from ..errors import (
+    CURRENT_VAULT_NOT_CONFIGURED,
+    CURRENT_VAULT_RECORD_NOT_FOUND,
+    NotFoundError,
+    RepositoryError,
+    SETTING_NOT_FOUND,
+    ValidationError,
+    VAULT_NOT_FOUND,
+)
 from ..repositories.files import (
     get_files_for_vault,
     upsert_file_record,
@@ -73,7 +82,7 @@ def _get_collection(
     try:
         collection = chroma_client.get_collection(name=resolved_name)
     except Exception as exc:
-        raise ValueError(
+        raise NotFoundError(
             f"No index found for collection '{resolved_name}'. Run /embed first."
         ) from exc
 
@@ -150,39 +159,55 @@ def _save_nodes(
 
 
 def get_current_vault_path() -> str:
-    current_vault = get_setting_value("current_vault")
-    if not current_vault["ok"]:
-        raise ValueError("No current vault is configured.")
+    try:
+        current_vault = get_setting_value("current_vault")
+    except RepositoryError as exc:
+        if str(exc) == SETTING_NOT_FOUND.format(key="current_vault"):
+            raise NotFoundError(CURRENT_VAULT_NOT_CONFIGURED) from exc
+
+        raise
 
     try:
-        vault_id = int(current_vault["value"])
+        vault_id = int(current_vault.value)
     except (TypeError, ValueError) as exc:
-        raise ValueError("Current vault setting is invalid.") from exc
+        raise ValidationError("Current vault setting is invalid.") from exc
 
-    vault_result = get_vault(vault_id)
-    if not vault_result["ok"]:
-        raise ValueError("Current vault record was not found.")
+    try:
+        vault_result = get_vault(vault_id)
+    except RepositoryError as exc:
+        if str(exc) == VAULT_NOT_FOUND.format(vault_id=vault_id):
+            raise NotFoundError(CURRENT_VAULT_RECORD_NOT_FOUND) from exc
 
-    return vault_result["vault"]["path"]
+        raise
+
+    return vault_result.vault.path
 
 
 def _get_current_vault_record() -> dict[str, Any]:
-    current_vault = get_setting_value("current_vault")
-    if not current_vault["ok"]:
-        raise ValueError("No current vault is configured.")
+    try:
+        current_vault = get_setting_value("current_vault")
+    except RepositoryError as exc:
+        if str(exc) == SETTING_NOT_FOUND.format(key="current_vault"):
+            raise NotFoundError(CURRENT_VAULT_NOT_CONFIGURED) from exc
+
+        raise
 
     try:
-        vault_id = int(current_vault["value"])
+        vault_id = int(current_vault.value)
     except (TypeError, ValueError) as exc:
-        raise ValueError("Current vault setting is invalid.") from exc
+        raise ValidationError("Current vault setting is invalid.") from exc
 
-    vault_result = get_vault(vault_id)
-    if not vault_result["ok"]:
-        raise ValueError("Current vault record was not found.")
+    try:
+        vault_result = get_vault(vault_id)
+    except RepositoryError as exc:
+        if str(exc) == VAULT_NOT_FOUND.format(vault_id=vault_id):
+            raise NotFoundError(CURRENT_VAULT_RECORD_NOT_FOUND) from exc
+
+        raise
 
     return {
         "id": vault_id,
-        "path": vault_result["vault"]["path"],
+        "path": vault_result.vault.path,
     }
 
 
@@ -190,13 +215,11 @@ def _find_changed_files(
     vault_id: int, vault_path: str
 ) -> tuple[list[tuple[str, datetime]], int, int]:
     file_records_result = get_files_for_vault(vault_id)
-    if not file_records_result["ok"]:
-        raise RuntimeError(file_records_result["error"])
 
-    indexed_files = {row["path"]: row for row in file_records_result["files"]}
+    indexed_files = {row.path: row for row in file_records_result.files}
     top_level_folder = Path(vault_path)
     if not top_level_folder.exists():
-        raise ValueError("Current vault path does not exist.")
+        raise ValidationError("Current vault path does not exist.")
 
     files_to_index: list[tuple[str, datetime]] = []
     new_files_count = 0
@@ -215,7 +238,7 @@ def _find_changed_files(
             should_index = True
             new_files_count += 1
         else:
-            indexed_at = file_record.get("indexed_at")
+            indexed_at = file_record.indexed_at
             if indexed_at is None:
                 should_index = True
                 modified_files_count += 1
@@ -238,7 +261,7 @@ def _find_changed_files(
 def embed_vault(path: str, collection_name: str | None = None) -> dict[str, Any]:
     path_obj = Path(path)
     if not path_obj.exists():
-        raise ValueError("Invalid Vault Path")
+        raise ValidationError("Invalid vault path.")
 
     documents = _load_documents_from_vault(str(path_obj))
     nodes = _chunk_documents(documents)
@@ -287,13 +310,9 @@ def embed_changed_files(collection_name: str | None = None) -> dict[str, Any]:
     )
 
     for file_path, modified_at in files_to_index:
-        upsert_result = upsert_file_record(vault_id, file_path, modified_at)
-        if not upsert_result["ok"]:
-            raise RuntimeError(upsert_result["error"])
+        upsert_file_record(vault_id, file_path, modified_at)
 
-    vault_touch_result = touch_vault_indexed_at(vault_path)
-    if not vault_touch_result["ok"]:
-        raise RuntimeError(vault_touch_result["error"])
+    touch_vault_indexed_at(vault_path)
 
     return {
         "ok": True,
@@ -336,12 +355,18 @@ def retrieve_chunks(
 
 
 def answer_with_context(query: str, chunks: list[dict[str, Any]]) -> str:
+    prompt = _build_answer_prompt(query=query, chunks=chunks)
+    response = _get_llm().complete(prompt)
+    return str(response)
+
+
+def _build_answer_prompt(query: str, chunks: list[dict[str, Any]]) -> str:
     context = "\n\n---\n\n".join(
         f"Source: {chunk['metadata'].get('file_name')}\n\n{chunk['text']}"
         for chunk in chunks
     )
 
-    prompt = f"""
+    return f"""
 You are a helpful assistant answering questions using the user's Obsidian notes.
 
 Use only the context below. If the answer is not in the context, say you don't know based on the notes.
@@ -355,8 +380,54 @@ Question:
 Answer:
 """
 
-    response = _get_llm().complete(prompt)
-    return str(response)
+
+def stream_chat(
+    query: str,
+    top_k: int = 5,
+    path: str | None = None,
+    collection_name: str | None = None,
+):
+    resolved_path = path or get_current_vault_path()
+
+    try:
+        retrieved = retrieve_chunks(
+            query=query,
+            top_k=top_k,
+            path=resolved_path,
+            collection_name=collection_name,
+        )
+    except NotFoundError:
+        embed_vault(resolved_path, collection_name)
+        retrieved = retrieve_chunks(
+            query=query,
+            top_k=top_k,
+            path=resolved_path,
+            collection_name=collection_name,
+        )
+
+    prompt = _build_answer_prompt(query=query, chunks=retrieved["results"])
+    llm = _get_llm()
+
+    if not hasattr(llm, "stream_complete"):
+        yield str(llm.complete(prompt))
+        return
+
+    streamed_text = ""
+    for chunk in llm.stream_complete(prompt):
+        delta = getattr(chunk, "delta", None)
+        if delta is None:
+            next_text = str(getattr(chunk, "text", ""))
+            if next_text.startswith(streamed_text):
+                delta = next_text[len(streamed_text) :]
+                streamed_text = next_text
+            else:
+                delta = next_text
+                streamed_text += next_text
+        else:
+            streamed_text += delta
+
+        if delta:
+            yield delta
 
 
 def chat(
@@ -374,7 +445,7 @@ def chat(
             path=resolved_path,
             collection_name=collection_name,
         )
-    except ValueError:
+    except NotFoundError:
         embed_vault(resolved_path, collection_name)
         retrieved = retrieve_chunks(
             query=query,

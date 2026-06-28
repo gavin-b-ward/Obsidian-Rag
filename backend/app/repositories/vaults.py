@@ -1,20 +1,27 @@
 import sqlite3
-from typing import Any
 
 from ..db.connection import get_connection
+from ..errors import RepositoryError, VAULT_NOT_FOUND
+from ..models.repository import (
+    CreateVaultResult,
+    GetVaultResult,
+    ListVaultsResult,
+    TouchVaultIndexedAtResult,
+    VaultRow,
+)
 
 
-def _serialize_vault(row: sqlite3.Row) -> dict[str, Any]:
-    return {
-        "id": row["id"],
-        "name": row["name"],
-        "path": row["path"],
-        "created_at": row["created_at"],
-        "last_indexed_at": row["last_indexed_at"],
-    }
+def _serialize_vault(row: sqlite3.Row) -> VaultRow:
+    return VaultRow(
+        id=row["id"],
+        name=row["name"],
+        path=row["path"],
+        created_at=row["created_at"],
+        last_indexed_at=row["last_indexed_at"],
+    )
 
 
-def add_vault(name: str, path: str) -> dict[str, Any]:
+def add_vault(name: str, path: str) -> CreateVaultResult:
     try:
         with get_connection() as conn:
             cursor = conn.execute(
@@ -39,25 +46,16 @@ def add_vault(name: str, path: str) -> dict[str, Any]:
 
             conn.commit()
 
-            return {
-                "ok": True,
-                "vault_id": vault_id,
-            }
+            return CreateVaultResult(vault_id=vault_id)
 
-    except sqlite3.IntegrityError:
-        return {
-            "ok": False,
-            "error": "A vault with this path already exists.",
-        }
+    except sqlite3.IntegrityError as exc:
+        raise RepositoryError("A vault with this path already exists.") from exc
 
     except sqlite3.OperationalError as e:
-        return {
-            "ok": False,
-            "error": f"Database operation failed: {e}",
-        }
+        raise RepositoryError(f"Database operation failed: {e}") from e
 
 
-def get_vault(vault_id: int) -> dict[str, Any]:
+def get_vault(vault_id: int) -> GetVaultResult:
     try:
         with get_connection() as conn:
             row = conn.execute(
@@ -70,15 +68,15 @@ def get_vault(vault_id: int) -> dict[str, Any]:
             ).fetchone()
 
         if row is None:
-            return {"ok": False, "error": f"No vault found with id: {vault_id}"}
+            raise RepositoryError(VAULT_NOT_FOUND.format(vault_id=vault_id))
 
-        return {"ok": True, "vault": _serialize_vault(row)}
+        return GetVaultResult(vault=_serialize_vault(row))
 
     except sqlite3.OperationalError as e:
-        return {"ok": False, "error": f"Database operation failed: {e}"}
+        raise RepositoryError(f"Database operation failed: {e}") from e
 
 
-def list_vaults() -> dict[str, Any]:
+def list_vaults() -> ListVaultsResult:
     try:
         with get_connection() as conn:
             rows = conn.execute(
@@ -89,16 +87,13 @@ def list_vaults() -> dict[str, Any]:
                 """
             ).fetchall()
 
-        return {
-            "ok": True,
-            "vaults": [_serialize_vault(row) for row in rows],
-        }
+        return ListVaultsResult(vaults=[_serialize_vault(row) for row in rows])
 
     except sqlite3.OperationalError as e:
-        return {"ok": False, "error": f"Database operation failed: {e}"}
+        raise RepositoryError(f"Database operation failed: {e}") from e
 
 
-def touch_vault_indexed_at(path: str) -> dict[str, Any]:
+def touch_vault_indexed_at(path: str) -> TouchVaultIndexedAtResult:
     try:
         with get_connection() as conn:
             cursor = conn.execute(
@@ -111,13 +106,7 @@ def touch_vault_indexed_at(path: str) -> dict[str, Any]:
             )
             conn.commit()
 
-            return {
-                "ok": True,
-                "updated": cursor.rowcount > 0,
-            }
+            return TouchVaultIndexedAtResult(updated=cursor.rowcount > 0)
 
     except sqlite3.OperationalError as e:
-        return {
-            "ok": False,
-            "error": f"Database operation failed: {e}",
-        }
+        raise RepositoryError(f"Database operation failed: {e}") from e

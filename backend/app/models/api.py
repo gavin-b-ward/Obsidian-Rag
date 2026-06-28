@@ -7,13 +7,6 @@ class ErrorResponse(BaseModel):
     resource: str
 
 
-class ChatRequest(BaseModel):
-    query: str
-    top_k: int = 5
-    path: str | None = None
-    collection_name: str | None = None
-
-
 class ChatSource(BaseModel):
     file_name: str | None = None
     file_path: str | None = None
@@ -72,3 +65,20 @@ class CreateVaultResponse(BaseModel):
 class VaultListResponse(BaseModel):
     ok: bool = True
     vaults: list[VaultRecord]
+
+
+class ChatRequest(BaseModel):
+    vault_id: int
+    msg: str
+
+
+class MsgRequest(BaseModel):
+    vault_id: int
+    msg: str
+
+
+class ChatResponseMetadata(BaseModel):
+    vault_id: int
+    chat_id: int
+    chat_title: str
+    msg_id: int
