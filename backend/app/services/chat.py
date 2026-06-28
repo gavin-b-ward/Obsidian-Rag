@@ -6,7 +6,9 @@ from typing import Any
 
 from ..errors import (
     CHAT_FOR_VAULT_NOT_FOUND,
+    CHAT_NOT_FOUND,
     NotFoundError,
+    REQUESTED_CHAT_NOT_FOUND,
     REQUESTED_CHAT_FOR_VAULT_NOT_FOUND,
     RepositoryError,
     ValidationError,
@@ -14,6 +16,8 @@ from ..errors import (
 from ..models.api import ChatResponseMetadata
 from ..repositories.chat import (
     create_chat as create_chat_record,
+    get_chat_detail,
+    get_chats as get_chat_records,
     create_message as create_message_record,
     create_message_for_vault,
     update_message_text,
@@ -43,12 +47,24 @@ def _derive_chat_title(message: str, max_length: int = 80) -> str:
 
 # Load chat summaries for the frontend chat list.
 def get_chats() -> dict[str, Any]:
-    raise NotImplementedError
+    result = get_chat_records()
+    return {"chats": [chat.model_dump() for chat in result.chats]}
 
 
 # Load one chat with its metadata and full message list.
 def get_chat(chat_id: int) -> dict[str, Any]:
-    raise NotImplementedError
+    try:
+        chat_result = get_chat_detail(chat_id)
+    except RepositoryError as exc:
+        if str(exc) == CHAT_NOT_FOUND.format(chat_id=chat_id):
+            raise NotFoundError(REQUESTED_CHAT_NOT_FOUND) from exc
+
+        raise
+
+    return {
+        "chat": chat_result.chat.model_dump(),
+        "messages": [message.model_dump() for message in chat_result.messages],
+    }
 
 
 def event_stream(

@@ -11,6 +11,7 @@ MESSAGE_NOT_FOUND = "No message found with id: {message_id}"
 CURRENT_VAULT_NOT_CONFIGURED = "No current vault is configured."
 REQUESTED_VAULT_NOT_FOUND = "Requested vault was not found."
 CURRENT_VAULT_RECORD_NOT_FOUND = "Current vault record was not found."
+REQUESTED_CHAT_NOT_FOUND = "Requested chat was not found."
 REQUESTED_CHAT_FOR_VAULT_NOT_FOUND = "Requested chat was not found for the current vault."
 
 

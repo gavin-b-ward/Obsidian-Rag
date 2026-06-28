@@ -12,6 +12,7 @@ from ..models.repository import (
     CreateChatResult,
     CreateMessageResult,
     DeleteChatResult,
+    GetChatDetailResult,
     GetChatMessagesResult,
     GetChatResult,
     GetChatsResult,
@@ -45,9 +46,44 @@ def _serialize_message(row: sqlite3.Row) -> MessageRow:
     )
 
 
+def _serialize_joined_chat(row: sqlite3.Row) -> ChatRow:
+    return ChatRow(
+        id=row["chat_id"],
+        vault_id=row["chat_vault_id"],
+        chat_title=row["chat_title"],
+        created_at=row["chat_created_at"],
+        updated_at=row["chat_updated_at"],
+    )
+
+
+def _serialize_joined_message(row: sqlite3.Row) -> MessageRow:
+    return MessageRow(
+        id=row["message_id"],
+        chat_id=row["message_chat_id"],
+        role=row["message_role"],
+        msg=row["message_msg"],
+        status=row["message_status"],
+        created_at=row["message_created_at"],
+        updated_at=row["message_updated_at"],
+    )
+
+
 # Fetch all chats with the fields needed for the chat list view.
 def get_chats() -> GetChatsResult:
-    raise NotImplementedError
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, vault_id, chat_title, created_at, updated_at
+                FROM chats
+                ORDER BY updated_at DESC, id DESC;
+                """
+            ).fetchall()
+
+            return GetChatsResult(chats=[_serialize_chat(row) for row in rows])
+
+    except sqlite3.OperationalError as exc:
+        raise RepositoryError(f"Database operation failed: {exc}") from exc
 
 
 # Fetch one chat record by id with its vault relationship fields.
@@ -72,9 +108,69 @@ def get_chat(chat_id: int) -> GetChatResult:
         raise RepositoryError(f"Database operation failed: {exc}") from exc
 
 
+# Fetch one chat and all stored messages with a single joined query.
+def get_chat_detail(chat_id: int) -> GetChatDetailResult:
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    chats.id AS chat_id,
+                    chats.vault_id AS chat_vault_id,
+                    chats.chat_title AS chat_title,
+                    chats.created_at AS chat_created_at,
+                    chats.updated_at AS chat_updated_at,
+                    messages.id AS message_id,
+                    messages.chat_id AS message_chat_id,
+                    messages.role AS message_role,
+                    messages.msg AS message_msg,
+                    messages.status AS message_status,
+                    messages.created_at AS message_created_at,
+                    messages.updated_at AS message_updated_at
+                FROM chats
+                LEFT JOIN messages ON messages.chat_id = chats.id
+                WHERE chats.id = ?
+                ORDER BY messages.created_at DESC, messages.id DESC;
+                """,
+                (chat_id,),
+            ).fetchall()
+
+            if not rows:
+                raise RepositoryError(CHAT_NOT_FOUND.format(chat_id=chat_id))
+
+            chat = _serialize_joined_chat(rows[0])
+            messages = [
+                _serialize_joined_message(row)
+                for row in rows
+                if row["message_id"] is not None
+            ]
+
+            return GetChatDetailResult(chat=chat, messages=messages)
+
+    except sqlite3.OperationalError as exc:
+        raise RepositoryError(f"Database operation failed: {exc}") from exc
+
+
 # Fetch all stored messages for a single chat.
 def get_chat_messages(chat_id: int) -> GetChatMessagesResult:
-    raise NotImplementedError
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, chat_id, role, msg, status, created_at, updated_at
+                FROM messages
+                WHERE chat_id = ?
+                ORDER BY created_at DESC, id DESC;
+                """,
+                (chat_id,),
+            ).fetchall()
+
+            return GetChatMessagesResult(
+                messages=[_serialize_message(row) for row in rows]
+            )
+
+    except sqlite3.OperationalError as exc:
+        raise RepositoryError(f"Database operation failed: {exc}") from exc
 
 
 # Create a new chat row tied to a vault.

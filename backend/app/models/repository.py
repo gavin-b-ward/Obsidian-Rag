@@ -93,6 +93,12 @@ class GetChatMessagesResult(BaseModel):
     messages: list[MessageRow]
 
 
+class GetChatDetailResult(BaseModel):
+    ok: Literal[True] = True
+    chat: ChatRow
+    messages: list[MessageRow]
+
+
 class CreateChatResult(BaseModel):
     ok: Literal[True] = True
     chat: ChatRow

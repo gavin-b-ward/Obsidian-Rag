@@ -17,21 +17,32 @@ from ..errors import (
 from ..models.api import ChatRequest, MsgRequest
 from ..repositories.settings import get_setting_value
 from ..repositories.vaults import get_vault
-from ..services.chat import create_chat as create_chat_service, add_message_to_chat as create_message_service
+from ..services.chat import (
+    add_message_to_chat as create_message_service,
+    create_chat as create_chat_service,
+    get_chat as get_chat_service,
+    get_chats as get_chats_service,
+)
 
-router = APIRouter(prefix="/v1/chat", tags=["chat"])
+router = APIRouter(prefix="/v1/chats", tags=["chat"])
 
 
 # Return all chats for the sidebar view, including title, vault, and updated time.
 @router.get("/")
 def get_chats() -> dict[str, Any]:
-    raise NotImplementedError
+    try:
+        return get_chats_service()
+    except AppError as exc:
+        raise to_http_exception(exc, "chat") from exc
 
 
 # Return one chat and its stored messages for the requested chat id.
 @router.get("/{chat_id}")
 def get_chat(chat_id: int) -> dict[str, Any]:
-    raise NotImplementedError
+    try:
+        return get_chat_service(chat_id)
+    except AppError as exc:
+        raise to_http_exception(exc, "chat") from exc
 
 
 # Create a new chat with its first user message and stream the app response.
