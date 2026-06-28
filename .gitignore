@@ -1,1 +1,13 @@
 opencode_plans/
+
+# Python bytecode caches
+__pycache__/
+*.py[cod]
+
+# Local environment and test caches
+.venv/
+.pytest_cache/
+
+# Local SQLite app data
+data/*.db
+backend/data/*.db
