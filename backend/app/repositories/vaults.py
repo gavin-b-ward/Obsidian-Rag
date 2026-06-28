@@ -1,11 +1,7 @@
-
-import hashlib
 import sqlite3
-from datetime import datetime
-from pathlib import Path
 from typing import Any
 
-from .connection import get_connection
+from ..db.connection import get_connection
 
 
 def _serialize_vault(row: sqlite3.Row) -> dict[str, Any]:
@@ -77,6 +73,26 @@ def get_vault(vault_id: int) -> dict[str, Any]:
             return {"ok": False, "error": f"No vault found with id: {vault_id}"}
 
         return {"ok": True, "vault": _serialize_vault(row)}
+
+    except sqlite3.OperationalError as e:
+        return {"ok": False, "error": f"Database operation failed: {e}"}
+
+
+def list_vaults() -> dict[str, Any]:
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, name, path, created_at, last_indexed_at
+                FROM vaults
+                ORDER BY created_at DESC;
+                """
+            ).fetchall()
+
+        return {
+            "ok": True,
+            "vaults": [_serialize_vault(row) for row in rows],
+        }
 
     except sqlite3.OperationalError as e:
         return {"ok": False, "error": f"Database operation failed: {e}"}

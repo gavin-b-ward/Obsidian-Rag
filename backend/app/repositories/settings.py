@@ -1,7 +1,7 @@
 import sqlite3
 from typing import Any
 
-from .connection import get_connection
+from ..db.connection import get_connection
 
 def update_key_value(key: str, value: str) -> dict[str, Any]:
     try:
@@ -64,5 +64,4 @@ def get_setting_value(key: str) -> dict[str, Any]:
             "key": key,
             "value": row["value"],
         }
-
 

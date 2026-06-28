@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .connection import get_connection
+from ..db.connection import get_connection
 
 
 def get_files_for_vault(vault_id: int) -> dict[str, Any]:
@@ -52,7 +52,8 @@ def upsert_file_record(
                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(vault_id, path) DO UPDATE SET
                     content_hash = excluded.content_hash,
-                    modified_at = excluded.modified_at;
+                    modified_at = excluded.modified_at,
+                    indexed_at = CURRENT_TIMESTAMP;
                 """,
                 (
                     vault_id,
@@ -106,5 +107,3 @@ def touch_files_indexed_at(paths: list[str]) -> dict[str, Any]:
             "ok": False,
             "error": f"Database operation failed: {e}",
         }
-
-
