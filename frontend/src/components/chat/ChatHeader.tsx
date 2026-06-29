@@ -18,7 +18,7 @@ export default function ChatHeader({
   const { activeTab, handleReindex, isIndexing, setActiveTab } = useChat();
 
   return (
-    <header className="z-10 flex h-16 shrink-0 items-center justify-between bg-surface-dim px-gutter">
+    <header className="z-10 flex h-16 shrink-0 items-center justify-between bg-transparent px-gutter">
       <div className="flex items-center gap-4">
         <button
           aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
