@@ -31,6 +31,114 @@ body {
   }
 }
 
+@layer components {
+  .markdown-content {
+    @apply text-body-base leading-relaxed break-words [overflow-wrap:anywhere];
+  }
+
+  .markdown-content > :first-child {
+    margin-top: 0;
+  }
+
+  .markdown-content > :last-child {
+    margin-bottom: 0;
+  }
+
+  .markdown-content > * + * {
+    @apply mt-4;
+  }
+
+  .markdown-content h1 {
+    @apply font-headline-md text-3xl font-semibold;
+  }
+
+  .markdown-content h2 {
+    @apply font-headline-md text-2xl font-semibold;
+  }
+
+  .markdown-content h3 {
+    @apply font-headline-md text-xl font-semibold;
+  }
+
+  .markdown-content h4 {
+    @apply text-lg font-semibold;
+  }
+
+  .markdown-content h5 {
+    @apply text-base font-semibold;
+  }
+
+  .markdown-content h6 {
+    @apply text-sm font-semibold uppercase tracking-[0.12em] opacity-80;
+  }
+
+  .markdown-content ul {
+    @apply list-disc pl-6;
+  }
+
+  .markdown-content ol {
+    @apply list-decimal pl-6;
+  }
+
+  .markdown-content li + li {
+    @apply mt-2;
+  }
+
+  .markdown-content li > ul,
+  .markdown-content li > ol {
+    @apply mt-2;
+  }
+
+  .markdown-content blockquote {
+    @apply border-l-2 border-outline-variant pl-4 italic opacity-80;
+  }
+
+  .markdown-content hr {
+    @apply border-0 border-t border-outline-variant/60;
+  }
+
+  .markdown-content a {
+    @apply underline decoration-outline underline-offset-4 transition-colors hover:text-primary;
+  }
+
+  .markdown-content strong {
+    @apply font-semibold;
+  }
+
+  .markdown-content code {
+    @apply rounded-md bg-surface-container-high px-1.5 py-0.5 font-code-label text-[0.95em] text-on-surface;
+  }
+
+  .markdown-content pre {
+    @apply overflow-x-auto rounded-2xl border border-outline-variant/60 bg-surface-container-low px-4 py-3;
+  }
+
+  .markdown-content pre code {
+    @apply bg-transparent p-0 text-[13px];
+  }
+
+  .markdown-content img {
+    @apply max-w-full rounded-2xl;
+  }
+
+  .markdown-content table {
+    @apply min-w-full border-collapse text-left text-sm;
+  }
+
+  .markdown-content thead {
+    @apply bg-surface-container-low;
+  }
+
+  .markdown-content th,
+  .markdown-content td {
+    @apply border border-outline-variant/60 px-3 py-2 align-top;
+  }
+
+  .markdown-content input[type="checkbox"] {
+    @apply mr-2 accent-primary;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
