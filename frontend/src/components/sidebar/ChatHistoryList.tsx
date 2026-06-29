@@ -1,13 +1,25 @@
-import { FolderOpen, History, Star } from "lucide-react";
+import type { ReactElement } from "react";
+import { FolderOpen, History, Star, type LucideIcon } from "lucide-react";
 import { useChat } from "../../context/ChatContext";
 
-const coreItems = [
+interface ChatHistoryListProps {
+  onSelectConversation: () => void;
+}
+
+interface CoreItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  active?: boolean;
+}
+
+const coreItems: CoreItem[] = [
   { id: "recent", label: "Recent", icon: History, active: true },
   { id: "vaults", label: "Vaults", icon: FolderOpen },
   { id: "starred", label: "Starred", icon: Star },
 ];
 
-export default function ChatHistoryList({ onSelectConversation }) {
+export default function ChatHistoryList({ onSelectConversation }: ChatHistoryListProps): ReactElement {
   const { activeConversationId, handleSelectConversation, historyItems, isLoadingChat } = useChat();
 
   return (
@@ -41,7 +53,7 @@ export default function ChatHistoryList({ onSelectConversation }) {
             className={`truncate rounded border-l-2 px-3 py-2 text-left text-sm transition-colors duration-200 ${isActive ? "border-primary bg-surface-container-high font-medium text-primary" : `border-transparent text-on-surface-variant hover:border-outline-variant hover:bg-surface-container-high ${item.faded ? "opacity-50" : ""}`}`}
             key={item.id}
             onClick={() => {
-              handleSelectConversation(item.id);
+              void handleSelectConversation(item.id);
               onSelectConversation();
             }}
             type="button"

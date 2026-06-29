@@ -1,19 +1,69 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type PropsWithChildren, type ReactElement } from "react";
 import { fetchChat, fetchChats, fetchVaults, streamChat } from "../lib/chatApi";
+import type {
+  ApiChatSummary,
+  ApiMessage,
+  ApiVault,
+  AppTab,
+  ChatHistoryItem,
+  ChatMessage,
+  LoadChatOptions,
+  MessageId,
+  ModelId,
+  ModelOption,
+  StreamEvent,
+  VaultOption,
+} from "../types/chat";
 
-const ChatContext = createContext(null);
+interface ChatContextValue {
+  activeConversationId: number | null;
+  activeModel: ModelOption;
+  activeModelId: ModelId;
+  activeTab: AppTab;
+  activeVault: VaultOption | null;
+  activeVaultId: number | null;
+  chatError: string;
+  draft: string;
+  handleNewChat: () => void;
+  handleReindex: () => void;
+  handleSelectConversation: (conversationId: number) => Promise<void>;
+  handleSubmit: () => Promise<void>;
+  historyItems: ChatHistoryItem[];
+  isIndexing: boolean;
+  isLoadingChat: boolean;
+  isStreaming: boolean;
+  isThinking: boolean;
+  messages: ChatMessage[];
+  modelOptions: ModelOption[];
+  sessionLabel: string;
+  setActiveModelId: (modelId: ModelId) => void;
+  setActiveTab: (tab: AppTab) => void;
+  setActiveVaultId: (vaultId: number | null) => void;
+  setDraft: (draft: string) => void;
+  vaultOptions: VaultOption[];
+}
 
-const modelOptions = [
+const ChatContext = createContext<ChatContextValue | null>(null);
+
+const modelOptions: ModelOption[] = [
   { id: "gpt4o", label: "GPT-4o" },
   { id: "claude", label: "Claude 3.5 Sonnet" },
   { id: "llama", label: "Local Llama" },
 ];
 
-function createMessageId(prefix) {
+function isAbortError(error: unknown): error is DOMException {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+function getErrorMessage(error: unknown, fallbackMessage: string): string {
+  return error instanceof Error && error.message ? error.message : fallbackMessage;
+}
+
+function createMessageId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function formatSessionLabel(value) {
+function formatSessionLabel(value: string | null | undefined): string {
   if (!value) {
     return "New session";
   }
@@ -49,7 +99,7 @@ function formatSessionLabel(value) {
   return `${dateLabel}, ${timeLabel}`;
 }
 
-function normalizeVault(vault) {
+function normalizeVault(vault: ApiVault): VaultOption {
   return {
     id: vault.id,
     label: vault.name,
@@ -61,7 +111,7 @@ function normalizeVault(vault) {
   };
 }
 
-function normalizeChatSummary(chat) {
+function normalizeChatSummary(chat: ApiChatSummary): ChatHistoryItem {
   return {
     id: chat.id,
     label: chat.chat_title,
@@ -71,7 +121,7 @@ function normalizeChatSummary(chat) {
   };
 }
 
-function normalizeMessage(message) {
+function normalizeMessage(message: ApiMessage): ChatMessage {
   return {
     id: message.id,
     role: message.role === "app" ? "assistant" : "user",
@@ -80,51 +130,73 @@ function normalizeMessage(message) {
   };
 }
 
-function sortChats(chats) {
+function getTimestamp(value: string | null | undefined): number {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = new Date(value.replace(" ", "T")).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function sortChats(chats: ChatHistoryItem[]): ChatHistoryItem[] {
   return [...chats].sort((left, right) => {
-    const leftTime = new Date((left.updatedAt ?? "").replace(" ", "T")).getTime();
-    const rightTime = new Date((right.updatedAt ?? "").replace(" ", "T")).getTime();
-    return rightTime - leftTime;
+    return getTimestamp(right.updatedAt) - getTimestamp(left.updatedAt);
   });
 }
 
-function upsertChatSummary(historyItems, nextItem) {
+function upsertChatSummary(
+  historyItems: ChatHistoryItem[],
+  nextItem: ChatHistoryItem,
+): ChatHistoryItem[] {
   const remainingItems = historyItems.filter((item) => item.id !== nextItem.id);
   return sortChats([nextItem, ...remainingItems]);
 }
 
-export function ChatProvider({ children }) {
-  const [vaultOptions, setVaultOptions] = useState([]);
-  const [historyItems, setHistoryItems] = useState([]);
-  const [activeVaultId, setActiveVaultId] = useState(null);
-  const [activeModelId, setActiveModelId] = useState(modelOptions[0].id);
-  const [activeConversationId, setActiveConversationId] = useState(null);
-  const [activeTab, setActiveTab] = useState("focus");
-  const [draft, setDraft] = useState("");
-  const [isIndexing, setIsIndexing] = useState(false);
-  const [isThinking, setIsThinking] = useState(false);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [isLoadingChat, setIsLoadingChat] = useState(true);
-  const [chatError, setChatError] = useState("");
-  const [sessionLabel, setSessionLabel] = useState("New session");
-  const [messages, setMessages] = useState([]);
-  const indexTimerRef = useRef(null);
-  const streamAbortRef = useRef(null);
+export function ChatProvider({ children }: PropsWithChildren): ReactElement {
+  const [vaultOptions, setVaultOptions] = useState<VaultOption[]>([]);
+  const [historyItems, setHistoryItems] = useState<ChatHistoryItem[]>([]);
+  const [activeVaultId, setActiveVaultIdState] = useState<number | null>(null);
+  const [activeModelId, setActiveModelIdState] = useState<ModelId>(modelOptions[0]!.id);
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [activeTab, setActiveTabState] = useState<AppTab>("focus");
+  const [draft, setDraftState] = useState<string>("");
+  const [isIndexing, setIsIndexing] = useState<boolean>(false);
+  const [isThinking, setIsThinking] = useState<boolean>(false);
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const [isLoadingChat, setIsLoadingChat] = useState<boolean>(true);
+  const [chatError, setChatError] = useState<string>("");
+  const [sessionLabel, setSessionLabel] = useState<string>("New session");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const indexTimerRef = useRef<number | null>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
 
   const activeVault = vaultOptions.find((vault) => vault.id === activeVaultId) ?? vaultOptions[0] ?? null;
-  const activeModel = modelOptions.find((model) => model.id === activeModelId) ?? modelOptions[0];
+  const activeModel = modelOptions.find((model) => model.id === activeModelId) ?? modelOptions[0]!;
 
-  function handleSelectVault(vaultId) {
-    setActiveVaultId(vaultId);
+  function setActiveModelId(modelId: ModelId): void {
+    setActiveModelIdState(modelId);
+  }
+
+  function setActiveTab(tab: AppTab): void {
+    setActiveTabState(tab);
+  }
+
+  function setDraft(nextDraft: string): void {
+    setDraftState(nextDraft);
+  }
+
+  function handleSelectVault(vaultId: number | null): void {
+    setActiveVaultIdState(vaultId);
     setActiveConversationId(null);
-    setActiveTab("focus");
+    setActiveTabState("focus");
     setSessionLabel("New session");
     setMessages([]);
     setChatError("");
     stopActiveStream();
   }
 
-  function stopActiveStream() {
+  function stopActiveStream(): void {
     if (streamAbortRef.current) {
       streamAbortRef.current.abort();
       streamAbortRef.current = null;
@@ -134,7 +206,7 @@ export function ChatProvider({ children }) {
     setIsStreaming(false);
   }
 
-  function appendAssistantError(messageId, errorMessage) {
+  function appendAssistantError(messageId: MessageId | null, errorMessage?: string | null): void {
     const fallbackText = errorMessage || "The assistant response failed before it could complete.";
 
     setMessages((currentMessages) => {
@@ -160,24 +232,24 @@ export function ChatProvider({ children }) {
     });
   }
 
-  async function loadChatById(chatId, options = undefined) {
+  async function loadChatById(chatId: number, options?: LoadChatOptions): Promise<void> {
     const nextVaultOptions = options?.nextVaultOptions;
     const signal = options?.signal;
     const chatResult = await fetchChat(chatId, signal);
-    const chronologicalMessages = [...(chatResult.messages ?? [])].reverse().map(normalizeMessage);
+    const chronologicalMessages = [...chatResult.messages].reverse().map(normalizeMessage);
     const availableVaults = nextVaultOptions ?? vaultOptions;
 
     setActiveConversationId(chatId);
     setMessages(chronologicalMessages);
-    setSessionLabel(formatSessionLabel(chatResult.chat?.created_at));
-    setActiveVaultId(chatResult.chat?.vault_id ?? availableVaults[0]?.id ?? null);
+    setSessionLabel(formatSessionLabel(chatResult.chat.created_at));
+    setActiveVaultIdState(chatResult.chat.vault_id ?? availableVaults[0]?.id ?? null);
     setChatError("");
   }
 
   useEffect(() => {
     const abortController = new AbortController();
 
-    async function bootstrapChat() {
+    async function bootstrapChat(): Promise<void> {
       setIsLoadingChat(true);
       setChatError("");
 
@@ -186,8 +258,8 @@ export function ChatProvider({ children }) {
           fetchVaults(abortController.signal),
           fetchChats(abortController.signal),
         ]);
-        const nextVaultOptions = (vaultResult.vaults ?? []).map(normalizeVault);
-        const nextHistoryItems = sortChats((chatsResult.chats ?? []).map(normalizeChatSummary));
+        const nextVaultOptions = vaultResult.vaults.map(normalizeVault);
+        const nextHistoryItems = sortChats(chatsResult.chats.map(normalizeChatSummary));
 
         setVaultOptions(nextVaultOptions);
         setHistoryItems(nextHistoryItems);
@@ -195,22 +267,22 @@ export function ChatProvider({ children }) {
         if (nextHistoryItems.length > 0) {
           const chatResult = await fetchChat(nextHistoryItems[0].id, abortController.signal);
           setActiveConversationId(nextHistoryItems[0].id);
-          setMessages([...(chatResult.messages ?? [])].reverse().map(normalizeMessage));
-          setSessionLabel(formatSessionLabel(chatResult.chat?.created_at));
-          setActiveVaultId(chatResult.chat?.vault_id ?? nextVaultOptions[0]?.id ?? null);
+          setMessages([...chatResult.messages].reverse().map(normalizeMessage));
+          setSessionLabel(formatSessionLabel(chatResult.chat.created_at));
+          setActiveVaultIdState(chatResult.chat.vault_id ?? nextVaultOptions[0]?.id ?? null);
           return;
         }
 
-        setActiveVaultId(nextVaultOptions[0]?.id ?? null);
+        setActiveVaultIdState(nextVaultOptions[0]?.id ?? null);
         setActiveConversationId(null);
         setMessages([]);
         setSessionLabel("New session");
-      } catch (error) {
-        if (error.name === "AbortError") {
+      } catch (error: unknown) {
+        if (isAbortError(error)) {
           return;
         }
 
-        setChatError(error.message || "Failed to load chat data.");
+        setChatError(getErrorMessage(error, "Failed to load chat data."));
       } finally {
         setIsLoadingChat(false);
       }
@@ -246,32 +318,32 @@ export function ChatProvider({ children }) {
     }, 2200);
   };
 
-  const handleSelectConversation = async (conversationId) => {
+  const handleSelectConversation = async (conversationId: number): Promise<void> => {
     stopActiveStream();
-    setActiveTab("focus");
-    setDraft("");
+    setActiveTabState("focus");
+    setDraftState("");
     setIsLoadingChat(true);
 
     try {
       await loadChatById(conversationId);
-    } catch (error) {
-      setChatError(error.message || "Failed to load chat.");
+    } catch (error: unknown) {
+      setChatError(getErrorMessage(error, "Failed to load chat."));
     } finally {
       setIsLoadingChat(false);
     }
   };
 
-  const handleNewChat = () => {
+  const handleNewChat = (): void => {
     stopActiveStream();
     setActiveConversationId(null);
-    setActiveTab("focus");
-    setDraft("");
+    setActiveTabState("focus");
+    setDraftState("");
     setSessionLabel("New session");
     setMessages([]);
     setChatError("");
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (): Promise<void> => {
     const trimmedDraft = draft.trim();
 
     if (!trimmedDraft || isStreaming || activeVaultId == null) {
@@ -280,7 +352,7 @@ export function ChatProvider({ children }) {
 
     stopActiveStream();
 
-    const nextUserMessage = {
+    const nextUserMessage: ChatMessage = {
       id: createMessageId("user"),
       role: "user",
       status: "complete",
@@ -288,12 +360,12 @@ export function ChatProvider({ children }) {
     };
     const abortController = new AbortController();
     const fallbackAssistantId = createMessageId("assistant");
-    let streamedAssistantId = null;
+    let streamedAssistantId: MessageId | null = null;
     let receivedFirstDelta = false;
 
     streamAbortRef.current = abortController;
-    setActiveTab("focus");
-    setDraft("");
+    setActiveTabState("focus");
+    setDraftState("");
     setChatError("");
     setIsThinking(true);
     setIsStreaming(true);
@@ -305,114 +377,121 @@ export function ChatProvider({ children }) {
         msg: trimmedDraft,
         signal: abortController.signal,
         vaultId: activeVaultId,
-        onEvent: ({ data, event }) => {
-          if (event === "chat_created") {
-            streamedAssistantId = data.msg_id;
-            setActiveConversationId(data.chat_id);
-            setActiveVaultId(data.vault_id);
-            setSessionLabel(formatSessionLabel(new Date().toISOString()));
-            setHistoryItems((currentItems) => upsertChatSummary(currentItems, {
-              id: data.chat_id,
-              label: data.chat_title,
-              faded: false,
-              updatedAt: new Date().toISOString(),
-              vaultId: data.vault_id,
-            }));
-            return;
-          }
-
-          if (event === "chat_message_created") {
-            streamedAssistantId = data.msg_id;
-            setActiveConversationId(data.chat_id);
-            setActiveVaultId(data.vault_id);
-            setHistoryItems((currentItems) => {
-              const currentItem = currentItems.find((item) => item.id === data.chat_id);
-
-              if (!currentItem) {
-                return currentItems;
-              }
-
-              return upsertChatSummary(currentItems, {
-                ...currentItem,
+        onEvent: (streamEvent: StreamEvent): void => {
+          switch (streamEvent.event) {
+            case "chat_created": {
+              const { data } = streamEvent;
+              streamedAssistantId = data.msg_id;
+              setActiveConversationId(data.chat_id);
+              setActiveVaultIdState(data.vault_id);
+              setSessionLabel(formatSessionLabel(new Date().toISOString()));
+              setHistoryItems((currentItems) => upsertChatSummary(currentItems, {
+                id: data.chat_id,
+                label: data.chat_title,
+                faded: false,
                 updatedAt: new Date().toISOString(),
-              });
-            });
-            return;
-          }
-
-          if (event === "assistant_message_delta") {
-            const nextAssistantId = data.msg_id ?? streamedAssistantId ?? fallbackAssistantId;
-            streamedAssistantId = nextAssistantId;
-
-            if (!receivedFirstDelta) {
-              receivedFirstDelta = true;
-              setIsThinking(false);
+                vaultId: data.vault_id,
+              }));
+              return;
             }
+            case "chat_message_created": {
+              const { data } = streamEvent;
+              streamedAssistantId = data.msg_id;
+              setActiveConversationId(data.chat_id);
+              setActiveVaultIdState(data.vault_id);
+              setHistoryItems((currentItems) => {
+                const currentItem = currentItems.find((item) => item.id === data.chat_id);
 
-            setMessages((currentMessages) => {
-              const hasAssistantMessage = currentMessages.some((message) => message.id === nextAssistantId);
+                if (!currentItem) {
+                  return currentItems;
+                }
 
-              if (!hasAssistantMessage) {
-                return [
-                  ...currentMessages,
-                  {
-                    id: nextAssistantId,
-                    role: "assistant",
-                    status: "streaming",
-                    text: data.delta ?? "",
-                  },
-                ];
+                return upsertChatSummary(currentItems, {
+                  ...currentItem,
+                  updatedAt: new Date().toISOString(),
+                });
+              });
+              return;
+            }
+            case "assistant_message_delta": {
+              const { data } = streamEvent;
+              const nextAssistantId = streamedAssistantId ?? data.msg_id ?? fallbackAssistantId;
+              streamedAssistantId = nextAssistantId;
+
+              if (!receivedFirstDelta) {
+                receivedFirstDelta = true;
+                setIsThinking(false);
               }
 
-              return currentMessages.map((message) => (
-                message.id === nextAssistantId
-                  ? { ...message, status: "streaming", text: `${message.text}${data.delta ?? ""}` }
-                  : message
-              ));
-            });
-            return;
-          }
+              setMessages((currentMessages) => {
+                const hasAssistantMessage = currentMessages.some((message) => message.id === nextAssistantId);
 
-          if (event === "assistant_message_completed") {
-            const nextAssistantId = data.msg_id ?? streamedAssistantId ?? fallbackAssistantId;
-            streamedAssistantId = nextAssistantId;
-            setIsThinking(false);
-            setIsStreaming(false);
-            setMessages((currentMessages) => {
-              const hasAssistantMessage = currentMessages.some((message) => message.id === nextAssistantId);
+                if (!hasAssistantMessage) {
+                  return [
+                    ...currentMessages,
+                    {
+                      id: nextAssistantId,
+                      role: "assistant",
+                      status: "streaming",
+                      text: data.delta,
+                    },
+                  ];
+                }
 
-              if (!hasAssistantMessage) {
-                return [
-                  ...currentMessages,
-                  {
-                    id: nextAssistantId,
-                    role: "assistant",
-                    status: "complete",
-                    text: "",
-                  },
-                ];
-              }
+                return currentMessages.map((message) => (
+                  message.id === nextAssistantId
+                    ? { ...message, status: "streaming", text: `${message.text}${data.delta}` }
+                    : message
+                ));
+              });
+              return;
+            }
+            case "assistant_message_completed": {
+              const { data } = streamEvent;
+              const nextAssistantId = streamedAssistantId ?? data.msg_id ?? fallbackAssistantId;
+              streamedAssistantId = nextAssistantId;
+              setIsThinking(false);
+              setIsStreaming(false);
+              setMessages((currentMessages) => {
+                const hasAssistantMessage = currentMessages.some((message) => message.id === nextAssistantId);
 
-              return currentMessages.map((message) => (
-                message.id === nextAssistantId ? { ...message, status: "complete" } : message
-              ));
-            });
-            return;
-          }
+                if (!hasAssistantMessage) {
+                  return [
+                    ...currentMessages,
+                    {
+                      id: nextAssistantId,
+                      role: "assistant",
+                      status: "complete",
+                      text: "",
+                    },
+                  ];
+                }
 
-          if (event === "assistant_message_failed") {
-            const nextAssistantId = data.msg_id ?? streamedAssistantId ?? fallbackAssistantId;
-            streamedAssistantId = nextAssistantId;
-            setIsThinking(false);
-            setIsStreaming(false);
-            appendAssistantError(nextAssistantId, data.error);
+                return currentMessages.map((message) => (
+                  message.id === nextAssistantId ? { ...message, status: "complete" } : message
+                ));
+              });
+              return;
+            }
+            case "assistant_message_failed": {
+              const { data } = streamEvent;
+              const nextAssistantId = streamedAssistantId ?? data.msg_id ?? fallbackAssistantId;
+              streamedAssistantId = nextAssistantId;
+              setIsThinking(false);
+              setIsStreaming(false);
+              appendAssistantError(nextAssistantId, data.error);
+              return;
+            }
+            case "unknown":
+              return;
           }
         },
       });
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        setChatError(error.message || "Chat request failed.");
-        appendAssistantError(streamedAssistantId ?? fallbackAssistantId, error.message);
+    } catch (error: unknown) {
+      if (!isAbortError(error)) {
+        const errorMessage = getErrorMessage(error, "Chat request failed.");
+        setChatError(errorMessage);
+        appendAssistantError(streamedAssistantId ?? fallbackAssistantId, errorMessage);
       }
     } finally {
       if (streamAbortRef.current === abortController) {
@@ -459,7 +538,7 @@ export function ChatProvider({ children }) {
   );
 }
 
-export function useChat() {
+export function useChat(): ChatContextValue {
   const context = useContext(ChatContext);
 
   if (!context) {

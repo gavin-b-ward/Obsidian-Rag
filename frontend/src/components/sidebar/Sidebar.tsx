@@ -1,9 +1,15 @@
+import type { ReactElement } from "react";
 import { FolderOpen, Plus, RefreshCw, X } from "lucide-react";
 import ChatHistoryList from "./ChatHistoryList";
 import VaultSelector from "./VaultSelector";
 import { useChat } from "../../context/ChatContext";
 
-export default function Sidebar({ isOpen, onClose }) {
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function Sidebar({ isOpen, onClose }: SidebarProps): ReactElement {
   const { handleNewChat, handleReindex, isIndexing } = useChat();
 
   return (

@@ -1,6 +1,12 @@
+import type { ReactElement } from "react";
 import { FileText } from "lucide-react";
+import type { ChatMessage } from "../../types/chat";
 
-export default function MessageBubble({ message }) {
+interface MessageBubbleProps {
+  message: ChatMessage;
+}
+
+export default function MessageBubble({ message }: MessageBubbleProps): ReactElement {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">

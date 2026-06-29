@@ -1,11 +1,11 @@
 import { ArrowUp, Paperclip } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ChangeEvent, type FormEvent, type KeyboardEvent, type ReactElement } from "react";
 import ModelSelector from "./ModelSelector";
 import { useChat } from "../../context/ChatContext";
 
-export default function ChatInputBar() {
+export default function ChatInputBar(): ReactElement {
   const { activeVaultId, draft, handleSubmit, isStreaming, setDraft } = useChat();
-  const textareaRef = useRef(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (!textareaRef.current) {
@@ -16,26 +16,38 @@ export default function ChatInputBar() {
     textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
   }, [draft]);
 
+  const submitDraft = (): void => {
+    void handleSubmit();
+  };
+
+  const handleFormSubmit = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    submitDraft();
+  };
+
+  const handleDraftChange = (event: ChangeEvent<HTMLTextAreaElement>): void => {
+    setDraft(event.target.value);
+  };
+
+  const handleDraftKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      submitDraft();
+    }
+  };
+
   return (
     <div className="pointer-events-none absolute bottom-stack-lg left-0 w-full px-gutter">
       <div className="mx-auto w-full max-w-container-max">
         <div className="insight-active-container pointer-events-auto">
           <form
             className="relative z-20 flex flex-col gap-2 rounded-2xl border border-white/20 bg-zinc-700 p-2 shadow-2xl"
-            onSubmit={(event) => {
-              event.preventDefault();
-              handleSubmit();
-            }}
+            onSubmit={handleFormSubmit}
           >
             <textarea
               className="min-h-[60px] max-h-[200px] w-full resize-none border-none bg-transparent p-3 text-body-base text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-0"
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  handleSubmit();
-                }
-              }}
+              onChange={handleDraftChange}
+              onKeyDown={handleDraftKeyDown}
               placeholder="Ask your vault..."
               ref={textareaRef}
               rows={1}

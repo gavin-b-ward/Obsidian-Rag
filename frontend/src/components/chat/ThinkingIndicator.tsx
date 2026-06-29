@@ -1,4 +1,6 @@
-export default function ThinkingIndicator() {
+import type { ReactElement } from "react";
+
+export default function ThinkingIndicator(): ReactElement {
   return (
     <div className="flex justify-start">
       <div className="max-w-[85%] text-left">

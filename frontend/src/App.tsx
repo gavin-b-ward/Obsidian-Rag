@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
 import ChatArea from "./components/chat/ChatArea";
 import ChatInputBar from "./components/input/ChatInputBar";
 import Sidebar from "./components/sidebar/Sidebar";
 import { ChatProvider } from "./context/ChatContext";
 
-function AppShell() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [showThinkingDemo, setShowThinkingDemo] = useState(false);
+function AppShell(): ReactElement {
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const [showThinkingDemo, setShowThinkingDemo] = useState<boolean>(false);
 
   return (
     <div className="min-h-screen bg-zinc-900 text-on-surface selection:bg-primary-container selection:text-on-primary-container">
@@ -27,7 +27,7 @@ function AppShell() {
   );
 }
 
-export default function App() {
+export default function App(): ReactElement {
   return (
     <ChatProvider>
       <AppShell />

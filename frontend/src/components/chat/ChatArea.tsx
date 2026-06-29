@@ -1,8 +1,17 @@
+import type { ReactElement } from "react";
 import { MoreVertical, PanelLeftClose, PanelLeftOpen, RefreshCw } from "lucide-react";
 import MessageStream from "./MessageStream";
 import { useChat } from "../../context/ChatContext";
 
-function IndexPanel() {
+interface ChatAreaProps {
+  isSidebarOpen: boolean;
+  onOpenSidebar: () => void;
+  onToggleSidebar?: () => void;
+  onToggleThinkingDemo: () => void;
+  showThinkingDemo: boolean;
+}
+
+function IndexPanel(): ReactElement {
   const { activeVault, handleReindex, isIndexing } = useChat();
 
   if (!activeVault) {
@@ -85,8 +94,9 @@ export default function ChatArea({
   onToggleSidebar,
   onToggleThinkingDemo,
   showThinkingDemo,
-}) {
+}: ChatAreaProps): ReactElement {
   const { activeTab, handleReindex, isIndexing, setActiveTab } = useChat();
+  const handleSidebarToggle = onToggleSidebar ?? onOpenSidebar;
 
   return (
     <section className="flex min-h-screen flex-1 flex-col bg-surface-dim">
@@ -95,7 +105,7 @@ export default function ChatArea({
           <button
             aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
             className="flex h-9 w-9 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
-            onClick={onToggleSidebar ?? onOpenSidebar}
+            onClick={handleSidebarToggle}
             type="button"
           >
             {isSidebarOpen ? (

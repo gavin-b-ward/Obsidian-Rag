@@ -1,14 +1,19 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactElement } from "react";
 import MessageBubble from "./MessageBubble";
 import ThinkingIndicator from "./ThinkingIndicator";
 import { useChat } from "../../context/ChatContext";
+import type { MessageId } from "../../types/chat";
 
-export default function MessageStream({ showThinkingDemo }) {
+interface MessageStreamProps {
+  showThinkingDemo: boolean;
+}
+
+export default function MessageStream({ showThinkingDemo }: MessageStreamProps): ReactElement {
   const { chatError, isLoadingChat, isThinking, messages, sessionLabel } = useChat();
-  const bottomRef = useRef(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  const hiddenAssistantId = showThinkingDemo && !isThinking
-    ? [...messages].reverse().find((message) => message.role === "assistant")?.id
+  const hiddenAssistantId: MessageId | null = showThinkingDemo && !isThinking
+    ? [...messages].reverse().find((message) => message.role === "assistant")?.id ?? null
     : null;
   const visibleMessages = hiddenAssistantId
     ? messages.filter((message) => message.id !== hiddenAssistantId)
