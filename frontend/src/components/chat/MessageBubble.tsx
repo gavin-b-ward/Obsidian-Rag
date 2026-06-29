@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import { FileText } from "lucide-react";
+import MarkdownMessage from "./MarkdownMessage";
 import type { ChatMessage } from "../../types/chat";
 
 interface MessageBubbleProps {
@@ -10,11 +11,9 @@ export default function MessageBubble({ message }: MessageBubbleProps): ReactEle
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="group relative max-w-[80%] text-right">
+        <div className="group relative max-w-[80%]">
           <div className="absolute -right-3 top-2 h-4 w-1 rounded-full bg-surface-container-highest transition-colors group-hover:bg-outline" />
-          <p className="text-body-base text-on-surface whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-            {message.text}
-          </p>
+          <MarkdownMessage className="text-on-surface" content={message.text} />
         </div>
       </div>
     );
@@ -37,11 +36,10 @@ export default function MessageBubble({ message }: MessageBubbleProps): ReactEle
           </div>
         ) : null}
         {message.text ? (
-          <p
-            className={`whitespace-pre-wrap break-words leading-relaxed [overflow-wrap:anywhere] ${message.status === "failed" ? "text-red-100" : "text-primary/90"}`}
-          >
-            {message.text}
-          </p>
+          <MarkdownMessage
+            className={message.status === "failed" ? "text-red-100" : "text-primary/90"}
+            content={message.text}
+          />
         ) : null}
       </div>
     </div>
