@@ -6,7 +6,9 @@ export default function MessageBubble({ message }) {
       <div className="flex justify-end">
         <div className="group relative max-w-[80%] text-right">
           <div className="absolute -right-3 top-2 h-4 w-1 rounded-full bg-surface-container-highest transition-colors group-hover:bg-outline" />
-          <p className="text-body-base text-on-surface">{message.text}</p>
+          <p className="text-body-base text-on-surface whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+            {message.text}
+          </p>
         </div>
       </div>
     );
