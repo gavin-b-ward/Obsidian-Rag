@@ -21,7 +21,7 @@ function AppShell(): ReactElement {
           onToggleSidebar={() => setIsSidebarOpen((currentState) => !currentState)}
           onToggleThinkingDemo={() => setShowThinkingDemo((currentState) => !currentState)}
         />
-        <ChatInputBar />
+        <ChatInputBar isSidebarOpen={isSidebarOpen} />
       </main>
     </div>
   );

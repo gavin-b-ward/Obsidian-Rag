@@ -3,7 +3,11 @@ import { useEffect, useRef, type ChangeEvent, type FormEvent, type KeyboardEvent
 import ModelSelector from "./ModelSelector";
 import { useChat } from "../../context/ChatContext";
 
-export default function ChatInputBar(): ReactElement {
+interface ChatInputBarProps {
+  isSidebarOpen: boolean;
+}
+
+export default function ChatInputBar({ isSidebarOpen }: ChatInputBarProps): ReactElement {
   const { activeVaultId, draft, handleSubmit, isStreaming, setDraft } = useChat();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -38,7 +42,9 @@ export default function ChatInputBar(): ReactElement {
 
   return (
     <div className="pointer-events-none absolute bottom-stack-lg left-0 w-full px-gutter">
-      <div className="mx-auto w-full max-w-container-max">
+      <div
+        className={`mx-auto w-full max-w-container-max transition-transform duration-300 ${isSidebarOpen ? "lg:translate-x-[130px]" : "lg:translate-x-0"}`}
+      >
         <div className="insight-active-container pointer-events-auto">
           <form
             className="relative z-20 flex flex-col gap-2 rounded-2xl border border-white/20 bg-zinc-700 p-2 shadow-2xl"
