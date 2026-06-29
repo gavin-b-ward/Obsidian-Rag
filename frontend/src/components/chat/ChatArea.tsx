@@ -1,7 +1,10 @@
-import type { ReactElement } from "react";
-import { MoreVertical, PanelLeftClose, PanelLeftOpen, RefreshCw } from "lucide-react";
+import { useEffect, useState, type ReactElement } from "react";
+import { RefreshCw } from "lucide-react";
+import ChatHeader from "./ChatHeader";
 import MessageStream from "./MessageStream";
 import { useChat } from "../../context/ChatContext";
+
+const HEADER_HEIGHT_PX = 64;
 
 interface ChatAreaProps {
   isSidebarOpen: boolean;
@@ -95,67 +98,53 @@ export default function ChatArea({
   onToggleThinkingDemo,
   showThinkingDemo,
 }: ChatAreaProps): ReactElement {
-  const { activeTab, handleReindex, isIndexing, setActiveTab } = useChat();
+  const { activeTab } = useChat();
   const handleSidebarToggle = onToggleSidebar ?? onOpenSidebar;
+  const [isHeaderOffscreen, setIsHeaderOffscreen] = useState<boolean>(false);
+  const [isPointerInHeaderZone, setIsPointerInHeaderZone] = useState<boolean>(false);
+
+  useEffect(() => {
+    function handleWindowScroll(): void {
+      setIsHeaderOffscreen(window.scrollY >= HEADER_HEIGHT_PX);
+    }
+
+    function handlePointerMove(event: PointerEvent): void {
+      setIsPointerInHeaderZone(event.clientY <= HEADER_HEIGHT_PX);
+    }
+
+    handleWindowScroll();
+    window.addEventListener("scroll", handleWindowScroll, { passive: true });
+    window.addEventListener("pointermove", handlePointerMove);
+
+    return () => {
+      window.removeEventListener("scroll", handleWindowScroll);
+      window.removeEventListener("pointermove", handlePointerMove);
+    };
+  }, []);
+
+  const revealHeaderContainerClassName = `fixed left-0 right-0 top-0 z-20 h-16 overflow-hidden transition-[left] duration-300 ${isSidebarOpen ? "lg:left-sidebar-width" : "lg:left-0"} ${isPointerInHeaderZone ? "pointer-events-auto" : "pointer-events-none"}`;
+  const revealHeaderClassName = `transition-transform duration-200 ease-out ${isPointerInHeaderZone ? "translate-y-0" : "-translate-y-full"}`;
 
   return (
     <section className="flex min-h-screen flex-1 flex-col bg-surface-dim">
-      <header className="z-10 flex h-16 shrink-0 items-center justify-between bg-surface-dim px-gutter">
-        <div className="flex items-center gap-4">
-          <button
-            aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
-            className="flex h-9 w-9 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
-            onClick={handleSidebarToggle}
-            type="button"
-          >
-            {isSidebarOpen ? (
-              <PanelLeftClose className="h-5 w-5" strokeWidth={1.8} />
-            ) : (
-              <PanelLeftOpen className="h-5 w-5" strokeWidth={1.8} />
-            )}
-          </button>
-          <div className="flex items-center gap-stack-lg text-sm font-medium text-on-surface-variant">
-            <button
-              className={`pb-1 transition-colors ${activeTab === "focus" ? "border-b-2 border-primary text-primary" : "hover:text-primary"}`}
-              onClick={() => setActiveTab("focus")}
-              type="button"
-            >
-              Focus
-            </button>
-            <button
-              className={`pb-1 transition-colors ${activeTab === "index" ? "border-b-2 border-primary text-primary" : "hover:text-primary"}`}
-              onClick={() => setActiveTab("index")}
-              type="button"
-            >
-              Index
-            </button>
+      <ChatHeader
+        isSidebarOpen={isSidebarOpen}
+        onToggleSidebar={handleSidebarToggle}
+        onToggleThinkingDemo={onToggleThinkingDemo}
+        showThinkingDemo={showThinkingDemo}
+      />
+      {isHeaderOffscreen ? (
+        <div className={revealHeaderContainerClassName}>
+          <div className={revealHeaderClassName}>
+            <ChatHeader
+              isSidebarOpen={isSidebarOpen}
+              onToggleSidebar={handleSidebarToggle}
+              onToggleThinkingDemo={onToggleThinkingDemo}
+              showThinkingDemo={showThinkingDemo}
+            />
           </div>
         </div>
-        <div className="flex items-center gap-2 text-on-surface-variant sm:gap-4">
-          <button
-            className={`rounded-full border px-3 py-1 font-code-label text-[11px] uppercase tracking-[0.18em] transition-colors ${showThinkingDemo ? "border-primary bg-surface-container-high text-primary" : "border-outline-variant text-on-surface-variant hover:text-primary"}`}
-            onClick={onToggleThinkingDemo}
-            type="button"
-          >
-            AI Waiting
-          </button>
-          <button
-            aria-label="Re-index vault"
-            className="flex h-8 w-8 items-center justify-center rounded transition-colors hover:bg-surface-container-high hover:text-primary"
-            onClick={handleReindex}
-            type="button"
-          >
-            <RefreshCw className={`h-5 w-5 ${isIndexing ? "animate-spin" : ""}`} strokeWidth={1.8} />
-          </button>
-          <button
-            aria-label="More options"
-            className="flex h-8 w-8 items-center justify-center rounded transition-colors hover:bg-surface-container-high hover:text-primary"
-            type="button"
-          >
-            <MoreVertical className="h-5 w-5" strokeWidth={1.8} />
-          </button>
-        </div>
-      </header>
+      ) : null}
       <div className="flex-1 overflow-y-auto px-gutter pb-[180px] pt-stack-lg scroll-smooth">
         {activeTab === "focus" ? <MessageStream showThinkingDemo={showThinkingDemo} /> : <IndexPanel />}
       </div>
