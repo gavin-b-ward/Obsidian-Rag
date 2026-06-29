@@ -1,4 +1,4 @@
-import { Menu, MoreVertical, RefreshCw } from "lucide-react";
+import { MoreVertical, PanelLeftClose, PanelLeftOpen, RefreshCw } from "lucide-react";
 import MessageStream from "./MessageStream";
 import { useChat } from "../../context/ChatContext";
 
@@ -69,7 +69,13 @@ function IndexPanel() {
   );
 }
 
-export default function ChatArea({ onOpenSidebar, onToggleThinkingDemo, showThinkingDemo }) {
+export default function ChatArea({
+  isSidebarOpen,
+  onOpenSidebar,
+  onToggleSidebar,
+  onToggleThinkingDemo,
+  showThinkingDemo,
+}) {
   const { activeTab, handleReindex, isIndexing, setActiveTab } = useChat();
 
   return (
@@ -77,12 +83,16 @@ export default function ChatArea({ onOpenSidebar, onToggleThinkingDemo, showThin
       <header className="z-10 flex h-16 shrink-0 items-center justify-between bg-surface-dim px-gutter">
         <div className="flex items-center gap-4">
           <button
-            aria-label="Open sidebar"
-            className="flex h-9 w-9 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary lg:hidden"
-            onClick={onOpenSidebar}
+            aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+            className="flex h-9 w-9 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
+            onClick={onToggleSidebar ?? onOpenSidebar}
             type="button"
           >
-            <Menu className="h-5 w-5" strokeWidth={1.8} />
+            {isSidebarOpen ? (
+              <PanelLeftClose className="h-5 w-5" strokeWidth={1.8} />
+            ) : (
+              <PanelLeftOpen className="h-5 w-5" strokeWidth={1.8} />
+            )}
           </button>
           <div className="flex items-center gap-stack-lg text-sm font-medium text-on-surface-variant">
             <button

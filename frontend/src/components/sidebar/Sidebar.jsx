@@ -15,7 +15,7 @@ export default function Sidebar({ isOpen, onClose }) {
         type="button"
       />
       <aside
-        className={`fixed left-0 top-0 z-40 flex h-full w-sidebar-width flex-col border-r border-outline-variant bg-surface-container-lowest py-gutter transition-transform duration-300 lg:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed left-0 top-0 z-40 flex h-full w-sidebar-width flex-col border-r border-outline-variant bg-surface-container-lowest py-gutter transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="mb-stack-lg px-gutter">
           <div className="mb-stack-md flex items-center justify-between gap-3">
@@ -34,7 +34,7 @@ export default function Sidebar({ isOpen, onClose }) {
             </div>
             <button
               aria-label="Close sidebar"
-              className="flex h-8 w-8 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary lg:hidden"
+              className="flex h-8 w-8 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
               onClick={onClose}
               type="button"
             >
