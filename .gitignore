@@ -13,7 +13,7 @@ data/*.db
 backend/data/*.db
 
 # Frontend build and local tooling output
-frontend/node_modules/
+node_modules/
 frontend/dist/
 frontend/.playwright-mcp/
 frontend/.env
