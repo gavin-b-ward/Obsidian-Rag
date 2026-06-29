@@ -1,0 +1,117 @@
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+@layer base {
+  body {
+    @apply bg-surface font-body-base text-on-surface antialiased;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a2c;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #45474a;
+}
+
+.insight-active-container {
+  position: relative;
+  z-index: 10;
+  transition: transform 0.2s ease;
+}
+
+.insight-active-container:focus-within {
+  transform: translateY(-2px);
+}
+
+.insight-active-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem;
+  pointer-events: none;
+  z-index: -1;
+  animation: rotate-shadow-pure 6s linear infinite;
+}
+
+@keyframes rotate-shadow-pure {
+  0% {
+    box-shadow: 30px 0 40px rgba(0, 0, 0, 1);
+  }
+
+  25% {
+    box-shadow: 0 30px 40px rgba(0, 0, 0, 1);
+  }
+
+  50% {
+    box-shadow: -30px 0 40px rgba(0, 0, 0, 1);
+  }
+
+  75% {
+    box-shadow: 0 -30px 40px rgba(0, 0, 0, 1);
+  }
+
+  100% {
+    box-shadow: 30px 0 40px rgba(0, 0, 0, 1);
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.thinking-dot {
+  animation: pulse-dot 1.5s infinite ease-in-out;
+}
+
+.thinking-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.thinking-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
