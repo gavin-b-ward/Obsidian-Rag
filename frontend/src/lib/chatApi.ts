@@ -4,6 +4,7 @@ import type {
   AssistantMessageFailedPayload,
   ChatCreatedPayload,
   ChatMessageCreatedPayload,
+  ChangedIndexResponse,
   FetchChatResponse,
   FetchChatsResponse,
   FetchVaultsResponse,
@@ -241,6 +242,21 @@ export async function fetchChat(chatId: number, signal?: AbortSignal): Promise<F
     `${API_BASE_URL}/v1/chats/${chatId}`,
     { signal },
     "Failed to load chat. Start the backend or update VITE_API_BASE_URL.",
+  );
+}
+
+export async function embedChangedFiles(signal?: AbortSignal): Promise<ChangedIndexResponse> {
+  return requestJson<ChangedIndexResponse>(
+    `${API_BASE_URL}/v1/embed/changed`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+      signal,
+    },
+    "Failed to index changed files. Start the backend or update VITE_API_BASE_URL.",
   );
 }
 

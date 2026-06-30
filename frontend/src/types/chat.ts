@@ -79,6 +79,15 @@ export interface FetchChatResponse {
   messages: ApiMessage[];
 }
 
+export interface ChangedIndexResponse {
+  ok: boolean;
+  collection: string;
+  files_indexed: number;
+  new_files: number;
+  modified_files: number;
+  chunks_indexed: number;
+}
+
 export interface ChatCreatedPayload {
   vault_id: number;
   chat_id: number;

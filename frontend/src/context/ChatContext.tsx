@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type PropsWithChildren, type ReactElement } from "react";
-import { fetchChat, fetchChats, fetchVaults, streamChat } from "../lib/chatApi";
+import { toast } from "sonner";
+import { embedChangedFiles, fetchChat, fetchChats, fetchVaults, streamChat } from "../lib/chatApi";
 import type {
   ApiChatSummary,
   ApiMessage,
@@ -168,7 +169,6 @@ export function ChatProvider({ children }: PropsWithChildren): ReactElement {
   const [chatError, setChatError] = useState<string>("");
   const [sessionLabel, setSessionLabel] = useState<string>("New session");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const indexTimerRef = useRef<number | null>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
 
   const activeVault = vaultOptions.find((vault) => vault.id === activeVaultId) ?? vaultOptions[0] ?? null;
@@ -293,29 +293,41 @@ export function ChatProvider({ children }: PropsWithChildren): ReactElement {
     return () => {
       abortController.abort();
 
-      if (indexTimerRef.current) {
-        window.clearTimeout(indexTimerRef.current);
-      }
-
       if (streamAbortRef.current) {
         streamAbortRef.current.abort();
       }
     };
   }, []);
 
-  const handleReindex = () => {
-    if (isIndexing) {
+  const handleReindex = async (): Promise<void> => {
+    if (isIndexing || activeVault == null) {
       return;
     }
 
-    if (indexTimerRef.current) {
-      window.clearTimeout(indexTimerRef.current);
-    }
-
     setIsIndexing(true);
-    indexTimerRef.current = window.setTimeout(() => {
+    try {
+      const result = await embedChangedFiles();
+
+      setVaultOptions((currentVaultOptions) => currentVaultOptions.map((vault) => (
+        vault.id === activeVault.id
+          ? {
+            ...vault,
+            lastIndexed: formatSessionLabel(new Date().toISOString()),
+            retrievalHealth: "Ready",
+          }
+          : vault
+      )));
+
+      const indexedLabel = result.files_indexed === 1 ? "1 file" : `${result.files_indexed} files`;
+      const changedLabel = result.new_files + result.modified_files;
+      const changedSummary = changedLabel === 1 ? "1 changed note" : `${changedLabel} changed notes`;
+      toast.success(`Index updated for ${activeVault.label}: ${indexedLabel}, ${changedSummary}.`);
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Failed to index changed files.");
+      toast.error(errorMessage);
+    } finally {
       setIsIndexing(false);
-    }, 2200);
+    }
   };
 
   const handleSelectConversation = async (conversationId: number): Promise<void> => {
