@@ -18,6 +18,7 @@ def _serialize_vault(row: sqlite3.Row) -> VaultRow:
         path=row["path"],
         created_at=row["created_at"],
         last_indexed_at=row["last_indexed_at"],
+        files_indexed=row["files_indexed"],
     )
 
 
@@ -60,9 +61,12 @@ def get_vault(vault_id: int) -> GetVaultResult:
         with get_connection() as conn:
             row = conn.execute(
                 """
-                SELECT id, name, path, created_at, last_indexed_at
-                FROM vaults
-                WHERE id = ?;
+                SELECT v.id, v.name, v.path, v.created_at, v.last_indexed_at,
+                       COUNT(f.id) AS files_indexed
+                FROM vaults v
+                LEFT JOIN files f ON f.vault_id = v.id
+                WHERE v.id = ?
+                GROUP BY v.id, v.name, v.path, v.created_at, v.last_indexed_at;
                 """,
                 (vault_id,),
             ).fetchone()
@@ -81,9 +85,12 @@ def list_vaults() -> ListVaultsResult:
         with get_connection() as conn:
             rows = conn.execute(
                 """
-                SELECT id, name, path, created_at, last_indexed_at
-                FROM vaults
-                ORDER BY created_at DESC;
+                SELECT v.id, v.name, v.path, v.created_at, v.last_indexed_at,
+                       COUNT(f.id) AS files_indexed
+                FROM vaults v
+                LEFT JOIN files f ON f.vault_id = v.id
+                GROUP BY v.id, v.name, v.path, v.created_at, v.last_indexed_at
+                ORDER BY v.created_at DESC;
                 """
             ).fetchall()
 

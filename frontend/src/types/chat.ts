@@ -45,6 +45,7 @@ export interface ApiVault {
   path: string;
   created_at: string | null;
   last_indexed_at: string | null;
+  files_indexed: number;
 }
 
 export interface FetchVaultsResponse {
@@ -83,6 +84,7 @@ export interface ChangedIndexResponse {
   ok: boolean;
   collection: string;
   files_indexed: number;
+  total_files_indexed: number;
   new_files: number;
   modified_files: number;
   chunks_indexed: number;

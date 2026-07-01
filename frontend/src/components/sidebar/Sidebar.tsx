@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { FolderOpen, Plus, RefreshCw, X } from "lucide-react";
+import { FolderOpen, Plus, RefreshCw } from "lucide-react";
 import ChatHistoryList from "./ChatHistoryList";
 import VaultSelector from "./VaultSelector";
 import { useChat } from "../../context/ChatContext";
@@ -38,14 +38,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps): ReactElement
                 </p>
               </div>
             </div>
-            <button
-              aria-label="Close sidebar"
-              className="flex h-8 w-8 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
-              onClick={onClose}
-              type="button"
-            >
-              <X className="h-4 w-4" strokeWidth={1.8} />
-            </button>
           </div>
           <VaultSelector />
           <button

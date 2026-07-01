@@ -106,6 +106,17 @@ def _load_documents_from_paths(paths: list[str]):
     ).load_data()
 
 
+def _upsert_documents_for_vault(vault_id: int, documents: list[Any]) -> None:
+    for document in documents:
+        file_path = document.metadata.get("file_path")
+        if not file_path:
+            continue
+
+        path_obj = Path(file_path)
+        modified_at = datetime.fromtimestamp(path_obj.stat().st_mtime, tz=timezone.utc)
+        upsert_file_record(vault_id, str(path_obj.resolve()), modified_at)
+
+
 def _chunk_documents(documents: list[Any]) -> list[Any]:
     _configure_models()
     pipeline = IngestionPipeline(
@@ -258,6 +269,56 @@ def _find_changed_files(
     return files_to_index, new_files_count, modified_files_count
 
 
+def _get_indexed_file_paths(path: str | None = None) -> list[str]:
+    current_vault = _get_current_vault_record()
+    resolved_path = path or current_vault["path"]
+
+    if resolved_path != current_vault["path"]:
+        return sorted(
+            str(file_path.resolve())
+            for file_path in Path(resolved_path).rglob("*.md")
+            if file_path.is_file()
+        )
+
+    file_rows = get_files_for_vault(current_vault["id"]).files
+    if file_rows:
+        return sorted(row.path for row in file_rows)
+
+    return sorted(
+        str(file_path.resolve())
+        for file_path in Path(resolved_path).rglob("*.md")
+        if file_path.is_file()
+    )
+
+
+def _answer_index_status_query(query: str, path: str | None = None) -> str | None:
+    normalized_query = re.sub(r"\s+", " ", query.strip().lower())
+    asks_for_count = bool(
+        re.search(r"how many .*?(notes|files).*(indexed|index)", normalized_query)
+        or re.search(r"(indexed|index).*(how many|number of).*(notes|files)", normalized_query)
+    )
+    asks_for_list = bool(
+        re.search(r"(which|what|list|show).*(notes|files).*(indexed|index)", normalized_query)
+        or re.search(r"(indexed|index).*(notes|files).*(which|what|list|show)", normalized_query)
+    )
+
+    if not asks_for_count and not asks_for_list:
+        return None
+
+    indexed_paths = _get_indexed_file_paths(path)
+    note_names = [Path(file_path).name for file_path in indexed_paths]
+    count_line = f"You have {len(note_names)} notes indexed."
+
+    if not asks_for_list:
+        return count_line
+
+    if not note_names:
+        return f"{count_line}\n\nNo indexed note names are available yet."
+
+    note_list = "\n".join(f"- {note_name}" for note_name in note_names)
+    return f"{count_line}\n\nIndexed notes:\n{note_list}"
+
+
 def embed_vault(path: str, collection_name: str | None = None) -> dict[str, Any]:
     path_obj = Path(path)
     if not path_obj.exists():
@@ -271,6 +332,14 @@ def embed_vault(path: str, collection_name: str | None = None) -> dict[str, Any]
         collection_name=collection_name,
         reset=True,
     )
+    try:
+        current_vault = _get_current_vault_record()
+    except NotFoundError:
+        current_vault = None
+
+    if current_vault and current_vault["path"] == str(path_obj):
+        _upsert_documents_for_vault(current_vault["id"], documents)
+
     touch_vault_indexed_at(str(path_obj))
 
     return {
@@ -290,10 +359,12 @@ def embed_changed_files(collection_name: str | None = None) -> dict[str, Any]:
     )
 
     if not files_to_index:
+        total_files_indexed = len(get_files_for_vault(vault_id).files)
         return {
             "ok": True,
             "collection": _resolve_collection_name(vault_path, collection_name),
             "files_indexed": 0,
+            "total_files_indexed": total_files_indexed,
             "new_files": 0,
             "modified_files": 0,
             "chunks_indexed": 0,
@@ -313,11 +384,13 @@ def embed_changed_files(collection_name: str | None = None) -> dict[str, Any]:
         upsert_file_record(vault_id, file_path, modified_at)
 
     touch_vault_indexed_at(vault_path)
+    total_files_indexed = len(get_files_for_vault(vault_id).files)
 
     return {
         "ok": True,
         "collection": resolved_name,
         "files_indexed": len(file_paths),
+        "total_files_indexed": total_files_indexed,
         "new_files": new_files_count,
         "modified_files": modified_files_count,
         "chunks_indexed": len(nodes),
@@ -388,6 +461,10 @@ def stream_chat(
     collection_name: str | None = None,
 ):
     resolved_path = path or get_current_vault_path()
+    direct_answer = _answer_index_status_query(query, resolved_path)
+    if direct_answer is not None:
+        yield direct_answer
+        return
 
     try:
         retrieved = retrieve_chunks(
@@ -437,6 +514,13 @@ def chat(
     collection_name: str | None = None,
 ) -> dict[str, Any]:
     resolved_path = path or get_current_vault_path()
+    direct_answer = _answer_index_status_query(query, resolved_path)
+    if direct_answer is not None:
+        return {
+            "ok": True,
+            "answer": direct_answer,
+            "sources": [],
+        }
 
     try:
         retrieved = retrieve_chunks(

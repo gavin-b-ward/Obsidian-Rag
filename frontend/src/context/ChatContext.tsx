@@ -101,10 +101,12 @@ function formatSessionLabel(value: string | null | undefined): string {
 }
 
 function normalizeVault(vault: ApiVault): VaultOption {
+  const indexedLabel = vault.files_indexed === 1 ? "1 note" : `${vault.files_indexed} notes`;
+
   return {
     id: vault.id,
     label: vault.name,
-    indexedNotes: "--",
+    indexedNotes: indexedLabel,
     lastIndexed: vault.last_indexed_at ? formatSessionLabel(vault.last_indexed_at) : "Not indexed yet",
     retrievalHealth: vault.last_indexed_at ? "Ready" : "Pending",
     recentSources: [],
@@ -312,6 +314,7 @@ export function ChatProvider({ children }: PropsWithChildren): ReactElement {
         vault.id === activeVault.id
           ? {
             ...vault,
+            indexedNotes: result.total_files_indexed === 1 ? "1 note" : `${result.total_files_indexed} notes`,
             lastIndexed: formatSessionLabel(new Date().toISOString()),
             retrievalHealth: "Ready",
           }

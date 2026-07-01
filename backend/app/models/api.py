@@ -39,6 +39,7 @@ class ChangedIndexResponse(BaseModel):
     ok: bool = True
     collection: str
     files_indexed: int
+    total_files_indexed: int
     new_files: int
     modified_files: int
     chunks_indexed: int
@@ -55,6 +56,7 @@ class VaultRecord(BaseModel):
     path: str
     created_at: str | None = None
     last_indexed_at: str | None = None
+    files_indexed: int = 0
 
 
 class CreateVaultResponse(BaseModel):

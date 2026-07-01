@@ -9,6 +9,7 @@ class VaultRow(BaseModel):
     path: str
     created_at: str | None = None
     last_indexed_at: str | None = None
+    files_indexed: int = 0
 
 
 class FileRow(BaseModel):
